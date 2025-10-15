@@ -191,8 +191,16 @@ function ReceiverContent() {
 
   // Admin: Stop a specific operator session
   const stopOperatorSession = async (targetOperator: number) => {
+    console.group('🖱️ CLICK: Ferma Sessione Operatore');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('👤 Operatore target:', targetOperator);
+    console.log('👤 Operatore corrente:', operator);
+    console.log('🔐 Sessione target:', generateOperatorSession(targetOperator));
+    
     if (targetOperator === operator) {
+      console.warn('⚠️ Tentativo di fermare propria sessione, negato');
       addLog('❌ Non puoi fermare la tua stessa sessione da qui!', true);
+      console.groupEnd();
       return;
     }
     
@@ -200,27 +208,46 @@ function ReceiverContent() {
     addLog(`🔄 Tentativo di fermare sessione Operatore ${targetOperator}...`);
     
     try {
+      console.log('📡 Invio richiesta al server...');
+      const requestBody = { session: targetSession, active: false };
+      console.log('📦 Body richiesta:', requestBody);
+      
       const response = await fetch('/api/qrseat/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session: targetSession, active: false })
+        body: JSON.stringify(requestBody)
       });
+      
+      console.log('📡 Risposta ricevuta, status:', response.status, response.statusText);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
+      console.log('📦 Dati risposta:', data);
       
       if (!data.ok) {
         throw new Error('Aggiornamento stato fallito');
       }
       
       addLog(`✅ Sessione Operatore ${targetOperator} fermata con successo`);
+      console.log('✅ Sessione fermata, refresh stati...');
       checkAdminOperatorStates();
       checkActiveOperators();
+      
+      console.log('✅ Stop operatore completato');
+      console.groupEnd();
     } catch (err) {
+      console.error('❌ ERRORE durante stop operatore:', err);
+      console.log('📊 Context errore:', {
+        targetOperator,
+        targetSession,
+        currentOperator: operator,
+        error: err
+      });
       addLog(`❌ Errore nel fermare Operatore ${targetOperator}: ${err}`, true);
+      console.groupEnd();
     }
   };
 
@@ -298,21 +325,36 @@ function ReceiverContent() {
 
   // Copy to clipboard
   const copyToClipboard = async (text: string, buttonId: string) => {
+    console.group('🖱️ CLICK: Copia negli Appunti');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('🆔 Button ID:', buttonId);
+    console.log('📝 Testo da copiare:', text);
+    console.log('📏 Lunghezza testo:', text.length);
+    console.log('🔐 Session corrente:', session);
+    console.log('👤 Operatore corrente:', operator);
+    
     const button = document.getElementById(buttonId);
     
     try {
       // Try modern Clipboard API first
       await navigator.clipboard.writeText(text);
       
+      console.log('✅ Metodo: Clipboard API (moderno)');
+      console.log('✅ Risultato: Successo');
+      
       if (button) {
         const originalText = button.textContent;
         button.textContent = 'Copiato!';
+        console.log('🔄 Testo bottone cambiato:', originalText, '→', 'Copiato!');
         setTimeout(() => {
           button.textContent = originalText || 'Copia';
+          console.log('🔄 Testo bottone ripristinato:', 'Copiato!', '→', originalText || 'Copia');
         }, 1500);
       }
       addLog('✅ Testo copiato negli appunti');
+      console.groupEnd();
     } catch (err) {
+      console.warn('⚠️ Clipboard API fallito:', err);
       // FALLBACK: Use legacy method for iframe/blocked contexts
       try {
         const textarea = document.createElement('textarea');
@@ -327,28 +369,44 @@ function ReceiverContent() {
         const successful = document.execCommand('copy');
         document.body.removeChild(textarea);
         
+        console.log('🔄 Metodo: execCommand (fallback)');
+        console.log('📊 Risultato execCommand:', successful);
+        
         if (successful) {
           if (button) {
             const originalText = button.textContent;
             button.textContent = 'Copiato!';
+            console.log('🔄 Testo bottone cambiato:', originalText, '→', 'Copiato!');
             setTimeout(() => {
               button.textContent = originalText || 'Copia';
+              console.log('🔄 Testo bottone ripristinato:', 'Copiato!', '→', originalText || 'Copia');
             }, 1500);
           }
           addLog('✅ Testo copiato (metodo alternativo)');
+          console.log('✅ Risultato finale: Successo (metodo alternativo)');
+          console.groupEnd();
         } else {
           throw new Error('Fallback copy failed');
         }
       } catch (fallbackErr) {
+        console.error('❌ Tutti i metodi di copia falliti:', fallbackErr);
+        console.log('🖼️ Context:', {
+          isIframe: window.self !== window.top,
+          hasClipboard: !!navigator.clipboard,
+          documentHasFocus: document.hasFocus()
+        });
         // If both methods fail, show error message
         addLog('⚠️ Impossibile copiare automaticamente. Copia manualmente il testo.', true);
         if (button) {
           const originalText = button.textContent;
           button.textContent = '❌ Copia manuale';
+          console.log('🔄 Testo bottone cambiato:', originalText, '→', '❌ Copia manuale');
           setTimeout(() => {
             button.textContent = originalText || 'Copia';
+            console.log('🔄 Testo bottone ripristinato:', '❌ Copia manuale', '→', originalText || 'Copia');
           }, 2000);
         }
+        console.groupEnd();
       }
     }
   };
@@ -458,22 +516,37 @@ function ReceiverContent() {
 
   // Handle operator change
   const handleOperatorChange = async (newOperator: number) => {
+    console.group('🖱️ CLICK: Cambio Operatore');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('👤 Operatore precedente:', operator);
+    console.log('👤 Nuovo operatore:', newOperator);
+    console.log('🔐 Session precedente:', session);
+    console.log('🟢 Sessione attiva?', isSessionActive);
+    console.log('📊 Operatori attivi:', Array.from(activeOperators));
+    
     // CRITICAL: Prevent selecting placeholder
-    if (newOperator === 0) return;
+    if (newOperator === 0) {
+      console.warn('⚠️ Operatore 0 non valido, uscita');
+      console.groupEnd();
+      return;
+    }
     
     addLog(`🔄 Cambio operatore a ${newOperator}...`);
     
     // CRITICAL: Block operator change if current session is active
     if (isSessionActive) {
+      console.error('❌ BLOCCO: Sessione attiva, cambio negato');
       addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
       setError('Ferma la sessione prima di cambiare operatore.');
       setTimeout(() => setError(''), 3000);
+      console.groupEnd();
       return;
     }
     
     // Set operator immediately
     setOperator(newOperator);
     saveOperator(newOperator);
+    console.log('✅ Operatore salvato in state e localStorage');
     
     // CRITICAL: Reset state when changing operator
     addLog(`✅ Operatore ${newOperator} selezionato, inizializzazione...`);
@@ -481,9 +554,11 @@ function ReceiverContent() {
     setBlockedUrl('');
     setIsSessionActive(false);
     prevIsSessionActive.current = false;
+    console.log('🔄 Stati resettati (status, blockedUrl, isSessionActive)');
     
     // Generate new session for selected operator
     const newSession = generateOperatorSession(newOperator);
+    console.log('🆕 Nuova sessione generata:', newSession);
     setSession(newSession);
     saveSessionToStorage(newSession);
     
@@ -491,6 +566,7 @@ function ReceiverContent() {
     const url = new URL(window.location.href);
     url.searchParams.set('session', newSession);
     window.history.replaceState(null, '', url.toString());
+    console.log('🔗 URL aggiornato:', url.toString());
     addLog(`✅ URL aggiornato: ${url.toString()}`);
     
     // CRITICAL: Generate sender URL and QR code DIRECTLY (don't wait for useEffect)
@@ -500,27 +576,36 @@ function ReceiverContent() {
     const senderUrlStr = senderUrlObj.toString();
     
     setSenderUrl(senderUrlStr);
+    console.log('📱 URL Sender generato:', senderUrlStr);
     addLog(`✅ URL Sender aggiornato: ${senderUrlStr}`);
     
     // CRITICAL: Regenerate QR code immediately
     try {
+      console.log('📸 Inizio generazione QR code...');
       const qrUrl = await generateQrCode(senderUrlStr);
       setQrDataUrl(qrUrl);
+      console.log('✅ QR Code generato, lunghezza data URL:', qrUrl.length);
       addLog(`✅ QR Code rigenerato per Operatore ${newOperator}`);
       addLog(`✅ Cambiato a Operatore ${newOperator} - Sessione: ${newSession}`);
       addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
       setStatus('Sessione in pausa - Premi "Avvia Sessione"');
     } catch (err) {
+      console.error('❌ Errore generazione QR:', err);
       addLog('Errore generazione QR: ' + err, true);
     }
     
     // CRITICAL: Refresh active operators list after change
+    console.log('🔄 Refresh lista operatori attivi...');
     checkActiveOperators(newOperator);
     
     // If switching to any operator, load admin panel
     if (newOperator > 0) {
+      console.log('🔄 Caricamento stati admin panel...');
       checkAdminOperatorStates();
     }
+    
+    console.log('✅ Cambio operatore completato');
+    console.groupEnd();
   };
 
   // Log polling interval changes
@@ -567,24 +652,42 @@ function ReceiverContent() {
 
   // Toggle session active state
   const toggleSession = async () => {
-    if (!session) return;
+    console.group('🖱️ CLICK: Toggle Sessione');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('🔐 Session:', session);
+    console.log('👤 Operatore:', operator);
+    console.log('🟢 Stato corrente:', isSessionActive ? 'ATTIVA' : 'INATTIVA');
+    console.log('🔄 Nuovo stato:', !isSessionActive ? 'ATTIVA' : 'INATTIVA');
+    
+    if (!session) {
+      console.error('❌ Nessuna sessione, uscita');
+      console.groupEnd();
+      return;
+    }
     
     const newState = !isSessionActive;
     addLog(`🔄 ${newState ? 'Avvio' : 'Fermo'} sessione...`);
     
     try {
+      console.log('📡 Invio richiesta al server...');
+      const requestBody = { session, active: newState };
+      console.log('📦 Body richiesta:', requestBody);
+      
       // CRITICAL: Wait for server confirmation before updating local state
       const response = await fetch('/api/qrseat/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session, active: newState })
+        body: JSON.stringify(requestBody)
       });
+      
+      console.log('📡 Risposta ricevuta, status:', response.status, response.statusText);
       
       if (!response.ok) {
         throw new Error(`Errore HTTP: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log('📦 Dati risposta:', data);
       
       if (!data.ok) {
         throw new Error('Aggiornamento stato fallito');
@@ -592,11 +695,24 @@ function ReceiverContent() {
       
       // SUCCESS: Update local state only after server confirmation
       setIsSessionActive(newState);
+      console.log('✅ Stato locale aggiornato:', newState);
       addLog(`✅ Sessione ${newState ? 'AVVIATA' : 'FERMATA'} con successo`);
       
+      console.log('✅ Toggle sessione completato con successo');
+      console.groupEnd();
+      
     } catch (err) {
+      console.error('❌ ERRORE durante toggle sessione:', err);
+      console.log('📊 Context errore:', {
+        session,
+        operator,
+        wasActive: isSessionActive,
+        attemptedState: newState,
+        error: err
+      });
       addLog(`❌ ERRORE aggiornamento stato: ${err}`, true);
       addLog(`⚠️ Stato locale NON modificato per sicurezza`, true);
+      console.groupEnd();
     }
   };
 
@@ -626,7 +742,11 @@ function ReceiverContent() {
             </label>
             <select
               value={operator}
-              onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+              onChange={(e) => {
+                const newOp = parseInt(e.target.value);
+                console.log('🖱️ SELECT: Operatore', operator, '→', newOp);
+                handleOperatorChange(newOp);
+              }}
               disabled={isSessionActive}
               className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -664,7 +784,24 @@ function ReceiverContent() {
               )}
             </Button>
             <Link href="/config">
-              <Button variant="outline" size="lg">
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={() => {
+                  console.group('🖱️ CLICK: Link Configurazione');
+                  console.log('⏰ Timestamp:', new Date().toISOString());
+                  console.log('🔗 Destinazione: /config');
+                  console.log('📊 Stato corrente:', {
+                    session,
+                    operator,
+                    isSessionActive,
+                    baseUrl,
+                    pollingInterval,
+                    target
+                  });
+                  console.groupEnd();
+                }}
+              >
                 <Settings className="w-4 h-4 mr-2" />
                 Configurazione
               </Button>
@@ -689,8 +826,16 @@ function ReceiverContent() {
                   <Button
                     size="lg"
                     onClick={() => {
+                      console.group('🖱️ CLICK: Apri Link Bloccato');
+                      console.log('⏰ Timestamp:', new Date().toISOString());
+                      console.log('🔗 URL da aprire:', blockedUrl);
+                      console.log('🔐 Session:', session);
+                      console.log('👤 Operatore:', operator);
                       window.open(blockedUrl, '_blank', 'noopener,noreferrer');
+                      console.log('✅ window.open eseguito');
                       setBlockedUrl('');
+                      console.log('✅ Banner nascosto');
+                      console.groupEnd();
                     }}
                   >
                     Apri Link
@@ -698,7 +843,14 @@ function ReceiverContent() {
                   <Button
                     size="lg"
                     variant="ghost"
-                    onClick={() => setBlockedUrl('')}
+                    onClick={() => {
+                      console.group('🖱️ CLICK: Chiudi Banner Bloccato');
+                      console.log('⏰ Timestamp:', new Date().toISOString());
+                      console.log('🔗 URL bloccato (nascosto):', blockedUrl);
+                      setBlockedUrl('');
+                      console.log('✅ Banner nascosto');
+                      console.groupEnd();
+                    }}
                     className="px-3"
                   >
                     <X className="w-5 h-5" />
