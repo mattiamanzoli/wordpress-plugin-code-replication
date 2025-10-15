@@ -164,9 +164,12 @@ function ReceiverContent() {
 
   // Copy to clipboard
   const copyToClipboard = async (text: string, buttonId: string) => {
+    const button = document.getElementById(buttonId);
+    
     try {
+      // Try modern Clipboard API first
       await navigator.clipboard.writeText(text);
-      const button = document.getElementById(buttonId);
+      
       if (button) {
         const originalText = button.textContent;
         button.textContent = 'Copiato!';
@@ -174,8 +177,45 @@ function ReceiverContent() {
           button.textContent = originalText || 'Copia';
         }, 1500);
       }
+      addLog('✅ Testo copiato negli appunti');
     } catch (err) {
-      addLog('Errore copia: ' + err, true);
+      // FALLBACK: Use legacy method for iframe/blocked contexts
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-999999px';
+        textarea.style.top = '-999999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+          if (button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copiato!';
+            setTimeout(() => {
+              button.textContent = originalText || 'Copia';
+            }, 1500);
+          }
+          addLog('✅ Testo copiato (metodo alternativo)');
+        } else {
+          throw new Error('Fallback copy failed');
+        }
+      } catch (fallbackErr) {
+        // If both methods fail, show error message
+        addLog('⚠️ Impossibile copiare automaticamente. Copia manualmente il testo.', true);
+        if (button) {
+          const originalText = button.textContent;
+          button.textContent = '❌ Copia manuale';
+          setTimeout(() => {
+            button.textContent = originalText || 'Copia';
+          }, 2000);
+        }
+      }
     }
   };
 
