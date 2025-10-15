@@ -487,11 +487,13 @@ function ReceiverContent() {
     setSession(newSession);
     saveSessionToStorage(newSession);
     
-    // CRITICAL: Use Next.js router instead of window.history for proper sync
-    router.push(`/receiver?session=${encodeURIComponent(newSession)}`);
-    addLog(`✅ URL pagina aggiornato con router Next.js`);
+    // CRITICAL: Update URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', newSession);
+    window.history.replaceState(null, '', url.toString());
+    addLog(`✅ URL aggiornato: ${url.toString()}`);
     
-    // CRITICAL: Update sender URL and regenerate QR code
+    // CRITICAL: Generate sender URL and QR code DIRECTLY (don't wait for useEffect)
     const senderUrlObj = new URL(window.location.origin);
     senderUrlObj.pathname = '/sender';
     senderUrlObj.searchParams.set('session', newSession);
@@ -500,7 +502,7 @@ function ReceiverContent() {
     setSenderUrl(senderUrlStr);
     addLog(`✅ URL Sender aggiornato: ${senderUrlStr}`);
     
-    // CRITICAL: Regenerate QR code for new operator
+    // CRITICAL: Regenerate QR code immediately
     try {
       const qrUrl = await generateQrCode(senderUrlStr);
       setQrDataUrl(qrUrl);
@@ -629,21 +631,11 @@ function ReceiverContent() {
               className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value={0} disabled>Seleziona un operatore...</option>
-              <option value={1} disabled={activeOperators.has(1)}>
-                Operatore 1 {activeOperators.has(1) ? '(occupato)' : ''}
-              </option>
-              <option value={2} disabled={activeOperators.has(2)}>
-                Operatore 2 {activeOperators.has(2) ? '(occupato)' : ''}
-              </option>
-              <option value={3} disabled={activeOperators.has(3)}>
-                Operatore 3 {activeOperators.has(3) ? '(occupato)' : ''}
-              </option>
-              <option value={4} disabled={activeOperators.has(4)}>
-                Operatore 4 {activeOperators.has(4) ? '(occupato)' : ''}
-              </option>
-              <option value={5} disabled={activeOperators.has(5)}>
-                Operatore 5 {activeOperators.has(5) ? '(occupato)' : ''}
-              </option>
+              <option value={1}>Operatore 1</option>
+              <option value={2}>Operatore 2</option>
+              <option value={3}>Operatore 3</option>
+              <option value={4}>Operatore 4</option>
+              <option value={5}>Operatore 5</option>
             </select>
             {operator > 0 && (
               <Badge variant="outline" className="text-base px-4 py-1">
