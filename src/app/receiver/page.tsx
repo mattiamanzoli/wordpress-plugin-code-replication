@@ -857,55 +857,57 @@ function ReceiverContent() {
           </Card>
         )}
 
-        {/* Admin Panel - Available to ALL operators */}
-        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-              Pannello Controllo Operatori
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((op) => {
-                const state = adminOperatorStates[op];
-                const isCurrentOperator = op === operator;
-                
-                return (
-                  <div 
-                    key={op}
-                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Badge variant={isCurrentOperator ? "default" : "outline"}>
-                        Operatore {op} {isCurrentOperator && '(Tu)'}
-                      </Badge>
-                      {state?.loading ? (
-                        <span className="text-sm text-gray-500">Caricamento...</span>
-                      ) : (
-                        <Badge 
-                          variant={state?.active ? "destructive" : "secondary"}
-                          className="text-xs"
-                        >
-                          {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+        {/* Admin Panel - Only visible to Operator 1 */}
+        {operator === 1 && (
+          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                Pannello Controllo Operatori
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((op) => {
+                  const state = adminOperatorStates[op];
+                  const isCurrentOperator = op === operator;
+                  
+                  return (
+                    <div 
+                      key={op}
+                      className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Badge variant={isCurrentOperator ? "default" : "outline"}>
+                          Operatore {op} {isCurrentOperator && '(Tu)'}
                         </Badge>
+                        {state?.loading ? (
+                          <span className="text-sm text-gray-500">Caricamento...</span>
+                        ) : (
+                          <Badge 
+                            variant={state?.active ? "destructive" : "secondary"}
+                            className="text-xs"
+                          >
+                            {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                          </Badge>
+                        )}
+                      </div>
+                      {!isCurrentOperator && state?.active && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => stopOperatorSession(op)}
+                        >
+                          Ferma Sessione
+                        </Button>
                       )}
                     </div>
-                    {!isCurrentOperator && state?.active && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => stopOperatorSession(op)}
-                      >
-                        Ferma Sessione
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Session & QR Code */}
