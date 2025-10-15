@@ -288,13 +288,12 @@ function ReceiverContent() {
   useEffect(() => {
     const interval = setInterval(() => {
       checkActiveOperators();
-      if (operator > 0) {
-        checkAdminOperatorStates();
-      }
-    }, 3000);
+      // FIXED: Always update admin panel, even without operator selected
+      checkAdminOperatorStates();
+    }, 2000); // OPTIMIZED: Reduced from 3000ms to 2000ms for faster sync
     
     return () => clearInterval(interval);
-  }, [checkActiveOperators, checkAdminOperatorStates, operator]);
+  }, [checkActiveOperators, checkAdminOperatorStates]);
 
   // CRITICAL: Sync session state with server on mount
   useEffect(() => {
