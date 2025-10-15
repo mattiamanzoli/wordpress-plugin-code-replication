@@ -199,6 +199,13 @@ function SenderContent() {
     stopScanning();
     stopCamera();
     
+    // CRITICAL: Stop status polling
+    if (statusCheckIntervalRef.current) {
+      clearInterval(statusCheckIntervalRef.current);
+      statusCheckIntervalRef.current = null;
+      addDebugLog('⏸️ Polling stato fermato');
+    }
+    
     // Clear all state
     setError(null);
     setSuccess(null);
@@ -220,10 +227,14 @@ function SenderContent() {
     
     addDebugLog(`✅ Nuova sessione Operatore ${newOperator}: ${newSession}`);
     
-    // Check status immediately
-    setTimeout(() => {
+    // CRITICAL: Force immediate status check and restart polling
+    checkSessionStatus(newSession);
+    
+    // Restart polling interval with new session
+    statusCheckIntervalRef.current = setInterval(() => {
       checkSessionStatus(newSession);
-    }, 100);
+    }, 2000);
+    addDebugLog('🔄 Polling stato riavviato per nuova sessione');
   };
 
   // CRITICAL: Check session status on server
