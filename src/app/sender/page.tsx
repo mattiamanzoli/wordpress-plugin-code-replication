@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Flashlight, Camera, Settings, Scan, Square, Play } from "lucide-react";
+import { Flashlight, Camera, Settings, Scan, Square, Play, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import jsQR from "jsqr";
@@ -70,6 +70,31 @@ function saveSession(session: string) {
   }
 }
 
+// Load/save operator selection
+function loadOperator(): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const stored = localStorage.getItem('qrseat-operator');
+    return stored ? parseInt(stored) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function saveOperator(operatorId: number) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('qrseat-operator', operatorId.toString());
+  } catch (err) {
+    console.error('Errore salvataggio operatore:', err);
+  }
+}
+
+// Generate session ID based on operator
+function generateOperatorSession(operatorId: number): string {
+  return `operator-${operatorId}`;
+}
+
 function SenderContent() {
   const searchParams = useSearchParams();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,6 +116,7 @@ function SenderContent() {
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean>(false);
+  const [operator, setOperator] = useState<number>(1);
   const statusCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
 
@@ -102,7 +128,7 @@ function SenderContent() {
     setDebugLog(prev => [logEntry, ...prev.slice(0, 19)]);
   };
 
-  // Load config on mount
+  // Load config and operator on mount
   useEffect(() => {
     const config = loadConfig();
     if (config) {
@@ -110,9 +136,13 @@ function SenderContent() {
       if (config.mode) setMode(config.mode);
       if (typeof config.redirect === 'boolean') setRedirect(config.redirect);
     }
+    
+    // Load operator selection
+    const savedOperator = loadOperator();
+    setOperator(savedOperator);
   }, []);
 
-  // Initialize session with localStorage persistence
+  // MODIFIED: Initialize session with operator support
   useEffect(() => {
     addDebugLog('🔄 Init sessione...');
     
@@ -131,7 +161,9 @@ function SenderContent() {
         sessionParam = storedSession;
         addDebugLog(`📥 localStorage: ${sessionParam.substring(0, 8)}...`);
       } else {
-        addDebugLog('📥 localStorage: VUOTO');
+        // Generate session from selected operator
+        sessionParam = generateOperatorSession(operator);
+        addDebugLog(`📥 Generated from operator ${operator}: ${sessionParam}`);
       }
     }
     
@@ -139,15 +171,41 @@ function SenderContent() {
       setSession(sessionParam);
       saveSession(sessionParam);
       setError(null);
-      addDebugLog(`✅ Sessione attiva: ${sessionParam.substring(0, 8)}...`);
+      addDebugLog(`✅ Sessione attiva: ${sessionParam.substring(0, 12)}...`);
       
-      // CRITICAL: Start checking session status
+      // Extract operator from session if it's an operator session
+      const operatorMatch = sessionParam.match(/^operator-(\d+)$/);
+      if (operatorMatch) {
+        const detectedOperator = parseInt(operatorMatch[1]);
+        if (detectedOperator >= 1 && detectedOperator <= 5) {
+          setOperator(detectedOperator);
+          saveOperator(detectedOperator);
+          addDebugLog(`🔍 Rilevato Operatore ${detectedOperator} dalla sessione`);
+        }
+      }
+      
       checkSessionStatus(sessionParam);
     } else {
       setError('Sessione mancante. Scansiona il QR Code di pairing sul desktop.');
       addDebugLog('❌ NESSUNA SESSIONE - Scansiona QR pairing');
     }
-  }, [searchParams]);
+  }, [searchParams, operator]);
+
+  // Handle operator change
+  const handleOperatorChange = (newOperator: number) => {
+    setOperator(newOperator);
+    saveOperator(newOperator);
+    
+    // Generate new session for selected operator
+    const newSession = generateOperatorSession(newOperator);
+    setSession(newSession);
+    saveSession(newSession);
+    
+    addDebugLog(`✅ Cambiato a Operatore ${newOperator} - Nuova sessione: ${newSession}`);
+    
+    // Check status immediately
+    checkSessionStatus(newSession);
+  };
 
   // CRITICAL: Check session status on server
   const checkSessionStatus = async (sessionId: string) => {
@@ -436,6 +494,34 @@ function SenderContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="max-w-md mx-auto space-y-4">
+        {/* Operator Selector Card */}
+        <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0">
+          <CardContent className="pt-6 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                <label className="text-sm font-medium">
+                  Operatore:
+                </label>
+              </div>
+              <select
+                value={operator}
+                onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+                className="px-4 py-2 border-2 border-white rounded-lg bg-white text-gray-900 font-bold text-base"
+              >
+                <option value={1}>Operatore 1</option>
+                <option value={2}>Operatore 2</option>
+                <option value={3}>Operatore 3</option>
+                <option value={4}>Operatore 4</option>
+                <option value={5}>Operatore 5</option>
+              </select>
+            </div>
+            <p className="text-xs text-blue-50 mt-2">
+              Sessione: {session || `operator-${operator}`}
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Scanner Card */}
         <Card>
           <CardHeader>

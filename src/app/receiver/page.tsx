@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Settings, Play, Square } from "lucide-react";
+import { Copy, Settings, Play, Square, Users } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
 
@@ -17,6 +17,31 @@ function generateSessionId(): string {
     id += chars[Math.floor(Math.random() * chars.length)];
   }
   return id;
+}
+
+// Generate session ID based on operator
+function generateOperatorSession(operatorId: number): string {
+  return `operator-${operatorId}`;
+}
+
+// Load/save operator selection
+function loadOperator(): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const stored = localStorage.getItem('qrseat-operator');
+    return stored ? parseInt(stored) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function saveOperator(operatorId: number) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('qrseat-operator', operatorId.toString());
+  } catch (err) {
+    console.error('Errore salvataggio operatore:', err);
+  }
 }
 
 // CRITICAL: Persist session in localStorage
@@ -74,6 +99,7 @@ const generateQrCode = async (url: string): Promise<string> => {
 function ReceiverContent() {
   const searchParams = useSearchParams();
   const [session, setSession] = useState<string>('');
+  const [operator, setOperator] = useState<number>(1);
   const [logs, setLogs] = useState<string[]>([]);
   const [status, setStatus] = useState<string>('Inizializzazione...');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -102,6 +128,10 @@ function ReceiverContent() {
       if (config.pollingInterval) setPollingInterval(config.pollingInterval);
       if (config.target) setTarget(config.target);
     }
+    
+    // Load operator selection
+    const savedOperator = loadOperator();
+    setOperator(savedOperator);
   }, []);
 
   // CRITICAL: Sync session state with server on mount
@@ -212,7 +242,7 @@ function ReceiverContent() {
     };
   }, [session, isSessionActive, pollingInterval, baseUrl, target, addLog]);
 
-  // OPTIMIZED: Initialize session with faster QR generation
+  // MODIFIED: Initialize session with operator-based ID
   useEffect(() => {
     let sessionId = searchParams.get('session');
     
@@ -221,16 +251,10 @@ function ReceiverContent() {
       sessionId = urlParams.get('session');
     }
     
+    // Generate session based on selected operator
     if (!sessionId) {
-      sessionId = loadSessionFromStorage();
-      if (sessionId) {
-        addLog(`Sessione ripristinata da localStorage: ${sessionId}`);
-      }
-    }
-    
-    if (!sessionId) {
-      sessionId = generateSessionId();
-      addLog(`Nuova sessione generata: ${sessionId}`);
+      sessionId = generateOperatorSession(operator);
+      addLog(`Sessione generata per Operatore ${operator}: ${sessionId}`);
     } else {
       addLog(`Sessione esistente: ${sessionId}`);
     }
@@ -249,7 +273,6 @@ function ReceiverContent() {
     
     setSenderUrl(senderUrlStr);
     
-    // CRITICAL: Generate QR locally (much faster than API)
     generateQrCode(senderUrlStr).then(qrUrl => {
       setQrDataUrl(qrUrl);
       addLog('QR Code generato (locale, ottimizzato 400x400)');
@@ -259,7 +282,38 @@ function ReceiverContent() {
     });
 
     addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
-  }, [searchParams, addLog]);
+  }, [searchParams, operator, addLog]);
+
+  // Handle operator change
+  const handleOperatorChange = (newOperator: number) => {
+    setOperator(newOperator);
+    saveOperator(newOperator);
+    
+    // Generate new session for selected operator
+    const newSession = generateOperatorSession(newOperator);
+    setSession(newSession);
+    saveSessionToStorage(newSession);
+    
+    // Update URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', newSession);
+    window.history.replaceState(null, '', url.toString());
+    
+    // Update sender URL and QR code
+    const senderUrlObj = new URL(window.location.origin);
+    senderUrlObj.pathname = '/sender';
+    senderUrlObj.searchParams.set('session', newSession);
+    const senderUrlStr = senderUrlObj.toString();
+    
+    setSenderUrl(senderUrlStr);
+    
+    generateQrCode(senderUrlStr).then(qrUrl => {
+      setQrDataUrl(qrUrl);
+      addLog(`✅ Cambiato a Operatore ${newOperator} - Nuova sessione: ${newSession}`);
+    }).catch(err => {
+      addLog('Errore generazione QR: ' + err, true);
+    });
+  };
 
   // Log polling interval changes
   useEffect(() => {
@@ -348,6 +402,29 @@ function ReceiverContent() {
           <p className="text-gray-600 dark:text-gray-300">
             Scansiona il QR code con il tuo telefono per connettere il sender
           </p>
+          
+          {/* Operator Selector */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Seleziona Operatore:
+            </label>
+            <select
+              value={operator}
+              onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg"
+            >
+              <option value={1}>Operatore 1</option>
+              <option value={2}>Operatore 2</option>
+              <option value={3}>Operatore 3</option>
+              <option value={4}>Operatore 4</option>
+              <option value={5}>Operatore 5</option>
+            </select>
+            <Badge variant="outline" className="text-base px-4 py-1">
+              Sessione: operator-{operator}
+            </Badge>
+          </div>
+          
           <div className="mt-4 flex items-center justify-center gap-3">
             <Button
               onClick={toggleSession}
