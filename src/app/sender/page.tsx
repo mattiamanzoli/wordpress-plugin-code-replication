@@ -193,6 +193,23 @@ function SenderContent() {
 
   // Handle operator change
   const handleOperatorChange = (newOperator: number) => {
+    addDebugLog(`🔄 Cambio operatore: ${operator} → ${newOperator}`);
+    
+    // CRITICAL: Stop everything first
+    stopScanning();
+    stopCamera();
+    
+    // Clear all state
+    setError(null);
+    setSuccess(null);
+    setProcessing(false);
+    setLastSentId('');
+    setCameraEnabled(false);
+    setCameraReady(false);
+    setTorchEnabled(false);
+    setSessionActive(false);
+    
+    // Save new operator
     setOperator(newOperator);
     saveOperator(newOperator);
     
@@ -201,10 +218,12 @@ function SenderContent() {
     setSession(newSession);
     saveSession(newSession);
     
-    addDebugLog(`✅ Cambiato a Operatore ${newOperator} - Nuova sessione: ${newSession}`);
+    addDebugLog(`✅ Nuova sessione Operatore ${newOperator}: ${newSession}`);
     
     // Check status immediately
-    checkSessionStatus(newSession);
+    setTimeout(() => {
+      checkSessionStatus(newSession);
+    }, 100);
   };
 
   // CRITICAL: Check session status on server
