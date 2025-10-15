@@ -710,161 +710,157 @@ function ReceiverContent() {
         )}
 
         {/* Admin Panel - Available to ALL operators */}
-        {operator > 0 && (
-          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                Pannello Controllo Operatori
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((op) => {
-                  const state = adminOperatorStates[op];
-                  const isCurrentOperator = op === operator;
-                  
-                  return (
-                    <div 
-                      key={op}
-                      className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge variant={isCurrentOperator ? "default" : "outline"}>
-                          Operatore {op} {isCurrentOperator && '(Tu)'}
-                        </Badge>
-                        {state?.loading ? (
-                          <span className="text-sm text-gray-500">Caricamento...</span>
-                        ) : (
-                          <Badge 
-                            variant={state?.active ? "destructive" : "secondary"}
-                            className="text-xs"
-                          >
-                            {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
-                          </Badge>
-                        )}
-                      </div>
-                      {!isCurrentOperator && state?.active && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => stopOperatorSession(op)}
+        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              Pannello Controllo Operatori
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((op) => {
+                const state = adminOperatorStates[op];
+                const isCurrentOperator = op === operator;
+                
+                return (
+                  <div 
+                    key={op}
+                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Badge variant={isCurrentOperator ? "default" : "outline"}>
+                        Operatore {op} {isCurrentOperator && '(Tu)'}
+                      </Badge>
+                      {state?.loading ? (
+                        <span className="text-sm text-gray-500">Caricamento...</span>
+                      ) : (
+                        <Badge 
+                          variant={state?.active ? "destructive" : "secondary"}
+                          className="text-xs"
                         >
-                          Ferma Sessione
-                        </Button>
+                          {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                        </Badge>
                       )}
                     </div>
-                  );
-                })}
+                    {!isCurrentOperator && state?.active && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => stopOperatorSession(op)}
+                      >
+                        Ferma Sessione
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Session & QR Code */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sessione Attiva</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Session ID:
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm font-mono">
+                    {session || '—'}
+                  </code>
+                  <Button
+                    id="copy-session"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(session, 'copy-session')}
+                    disabled={!session}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  URL Sender:
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <a
+                    href={senderUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm truncate hover:bg-gray-200 dark:hover:bg-gray-700"
+                  >
+                    {senderUrl || '—'}
+                  </a>
+                  <Button
+                    id="copy-url"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(senderUrl, 'copy-url')}
+                    disabled={!senderUrl}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  QR Code di Pairing
+                </p>
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="QR Code"
+                    className="border-4 border-white shadow-lg rounded-lg"
+                  />
+                ) : (
+                  <div className="w-[200px] h-[200px] bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg" />
+                )}
               </div>
             </CardContent>
           </Card>
-        )}
 
-        {operator > 0 && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Session & QR Code */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Sessione Attiva</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Session ID:
-                  </label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm font-mono">
-                      {session || '—'}
-                    </code>
-                    <Button
-                      id="copy-session"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(session, 'copy-session')}
-                      disabled={!session}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+          {/* Status & Logs */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Status & Log</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                  Stato Corrente:
+                </label>
+                <Badge 
+                  variant="outline" 
+                  className={`w-full justify-center py-2 text-sm ${isSessionActive ? 'bg-green-50 text-green-700 border-green-300' : 'bg-gray-50 text-gray-700'}`}
+                >
+                  {status}
+                </Badge>
+              </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    URL Sender:
-                  </label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <a
-                      href={senderUrl || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm truncate hover:bg-gray-200 dark:hover:bg-gray-700"
-                    >
-                      {senderUrl || '—'}
-                    </a>
-                    <Button
-                      id="copy-url"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(senderUrl, 'copy-url')}
-                      disabled={!senderUrl}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                  Log Live:
+                </label>
+                <div className="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded-lg h-[400px] overflow-y-auto">
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="whitespace-pre-wrap mb-1">
+                      {log}
+                    </div>
+                  ))}
                 </div>
-
-                <div className="flex flex-col items-center justify-center py-6">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    QR Code di Pairing
-                  </p>
-                  {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt="QR Code"
-                      className="border-4 border-white shadow-lg rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-[200px] h-[200px] bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg" />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Status & Logs */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Status & Log</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
-                    Stato Corrente:
-                  </label>
-                  <Badge 
-                    variant="outline" 
-                    className={`w-full justify-center py-2 text-sm ${isSessionActive ? 'bg-green-50 text-green-700 border-green-300' : 'bg-gray-50 text-gray-700'}`}
-                  >
-                    {status}
-                  </Badge>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
-                    Log Live:
-                  </label>
-                  <div className="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded-lg h-[400px] overflow-y-auto">
-                    {logs.map((log, idx) => (
-                      <div key={idx} className="whitespace-pre-wrap mb-1">
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
