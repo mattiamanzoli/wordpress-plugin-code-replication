@@ -110,6 +110,7 @@ function ReceiverContent() {
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
   const [blockedUrl, setBlockedUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [activeOperators, setActiveOperators] = useState<Set<number>>(new Set());
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
 
@@ -119,6 +120,28 @@ function ReceiverContent() {
     const prefix = isError ? '[ERRORE]' : '[INFO]';
     const logEntry = `${now} ${prefix} ${message}`;
     setLogs(prev => [logEntry, ...prev.slice(0, 19)]);
+  }, []);
+
+  // Check which operators have active sessions
+  const checkActiveOperators = useCallback(async () => {
+    const activeOps = new Set<number>();
+    
+    // Check all 5 operators
+    for (let i = 1; i <= 5; i++) {
+      const operatorSession = generateOperatorSession(i);
+      try {
+        const response = await fetch(`/api/qrseat/status?session=${encodeURIComponent(operatorSession)}`);
+        const data = await response.json();
+        
+        if (data.ok && data.active === true) {
+          activeOps.add(i);
+        }
+      } catch (err) {
+        // Ignore errors for individual checks
+      }
+    }
+    
+    setActiveOperators(activeOps);
   }, []);
 
   // Load config on mount
@@ -133,7 +156,19 @@ function ReceiverContent() {
     // Load operator selection
     const savedOperator = loadOperator();
     setOperator(savedOperator);
-  }, []);
+    
+    // CRITICAL: Check active operators on mount
+    checkActiveOperators();
+  }, [checkActiveOperators]);
+
+  // CRITICAL: Periodically refresh active operators list
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkActiveOperators();
+    }, 3000); // Check every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [checkActiveOperators]);
 
   // CRITICAL: Sync session state with server on mount
   useEffect(() => {
@@ -331,7 +366,7 @@ function ReceiverContent() {
     if (isSessionActive) {
       addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
       setError('Ferma la sessione prima di cambiare operatore.');
-      setTimeout(() => setError(null), 3000);
+      setTimeout(() => setError(''), 3000);
       return;
     }
     
@@ -344,7 +379,7 @@ function ReceiverContent() {
       if (data.ok && data.active === true) {
         addLog(`❌ Operatore ${newOperator} ha già una sessione attiva!`, true);
         setError(`Operatore ${newOperator} non disponibile (sessione attiva).`);
-        setTimeout(() => setError(null), 3000);
+        setTimeout(() => setError(''), 3000);
         return;
       }
     } catch (err) {
@@ -371,7 +406,7 @@ function ReceiverContent() {
     url.searchParams.set('session', newSession);
     window.history.replaceState(null, '', url.toString());
     
-    // Update sender URL and QR code
+    // CRITICAL: Update sender URL and QR code
     const senderUrlObj = new URL(window.location.origin);
     senderUrlObj.pathname = '/sender';
     senderUrlObj.searchParams.set('session', newSession);
@@ -379,13 +414,18 @@ function ReceiverContent() {
     
     setSenderUrl(senderUrlStr);
     
+    // CRITICAL: Regenerate QR code for new operator
     generateQrCode(senderUrlStr).then(qrUrl => {
       setQrDataUrl(qrUrl);
       addLog(`✅ Cambiato a Operatore ${newOperator} - Sessione: ${newSession}`);
+      addLog(`✅ QR Code aggiornato per Operatore ${newOperator}`);
       addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
     }).catch(err => {
       addLog('Errore generazione QR: ' + err, true);
     });
+    
+    // CRITICAL: Refresh active operators list after change
+    checkActiveOperators();
   };
 
   // Log polling interval changes
@@ -476,6 +516,13 @@ function ReceiverContent() {
             Scansiona il QR code con il tuo telefono per connettere il sender
           </p>
           
+          {/* Error Banner */}
+          {error && (
+            <div className="mt-4 mx-auto max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
           {/* Operator Selector */}
           <div className="mt-6 flex items-center justify-center gap-3">
             <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
@@ -485,13 +532,24 @@ function ReceiverContent() {
             <select
               value={operator}
               onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
-              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg"
+              disabled={isSessionActive}
+              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value={1}>Operatore 1</option>
-              <option value={2}>Operatore 2</option>
-              <option value={3}>Operatore 3</option>
-              <option value={4}>Operatore 4</option>
-              <option value={5}>Operatore 5</option>
+              <option value={1} disabled={activeOperators.has(1) && operator !== 1}>
+                Operatore 1 {activeOperators.has(1) && operator !== 1 ? '(occupato)' : ''}
+              </option>
+              <option value={2} disabled={activeOperators.has(2) && operator !== 2}>
+                Operatore 2 {activeOperators.has(2) && operator !== 2 ? '(occupato)' : ''}
+              </option>
+              <option value={3} disabled={activeOperators.has(3) && operator !== 3}>
+                Operatore 3 {activeOperators.has(3) && operator !== 3 ? '(occupato)' : ''}
+              </option>
+              <option value={4} disabled={activeOperators.has(4) && operator !== 4}>
+                Operatore 4 {activeOperators.has(4) && operator !== 4 ? '(occupato)' : ''}
+              </option>
+              <option value={5} disabled={activeOperators.has(5) && operator !== 5}>
+                Operatore 5 {activeOperators.has(5) && operator !== 5 ? '(occupato)' : ''}
+              </option>
             </select>
             <Badge variant="outline" className="text-base px-4 py-1">
               Sessione: operator-{operator}
