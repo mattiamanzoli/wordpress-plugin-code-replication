@@ -749,11 +749,11 @@ function ReceiverContent() {
               className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value={0}>Seleziona un operatore...</option>
-              <option value={1}>Operatore 1</option>
-              <option value={2}>Operatore 2</option>
-              <option value={3}>Operatore 3</option>
-              <option value={4}>Operatore 4</option>
-              <option value={5}>Operatore 5</option>
+              <option value={1} disabled={activeOperators.has(1)}>Operatore 1{activeOperators.has(1) ? ' (Sessione Attiva)' : ''}</option>
+              <option value={2} disabled={activeOperators.has(2)}>Operatore 2{activeOperators.has(2) ? ' (Sessione Attiva)' : ''}</option>
+              <option value={3} disabled={activeOperators.has(3)}>Operatore 3{activeOperators.has(3) ? ' (Sessione Attiva)' : ''}</option>
+              <option value={4} disabled={activeOperators.has(4)}>Operatore 4{activeOperators.has(4) ? ' (Sessione Attiva)' : ''}</option>
+              <option value={5} disabled={activeOperators.has(5)}>Operatore 5{activeOperators.has(5) ? ' (Sessione Attiva)' : ''}</option>
             </select>
             {operator > 0 && (
               <Badge variant="outline" className="text-base px-4 py-1">
