@@ -491,6 +491,17 @@ function ReceiverContent() {
       return;
     }
 
+    // CRITICAL: Extract operator number from session ID (e.g., "operator-1" -> 1)
+    const operatorMatch = sessionId.match(/^operator-(\d+)$/);
+    if (operatorMatch) {
+      const operatorNum = parseInt(operatorMatch[1]);
+      if (operatorNum >= 1 && operatorNum <= 5) {
+        setOperator(operatorNum);
+        saveOperator(operatorNum);
+        addLog(`✅ Operatore ${operatorNum} rilevato dall'URL`);
+      }
+    }
+
     // Existing session from URL
     addLog(`Sessione esistente: ${sessionId}`);
     saveSessionToStorage(sessionId);
