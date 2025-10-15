@@ -494,40 +494,17 @@ function SenderContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="max-w-md mx-auto space-y-4">
-        {/* Operator Selector Card */}
-        <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0">
-          <CardContent className="pt-6 pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                <label className="text-sm font-medium">
-                  Operatore:
-                </label>
-              </div>
-              <select
-                value={operator}
-                onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
-                className="px-4 py-2 border-2 border-white rounded-lg bg-white text-gray-900 font-bold text-base"
-              >
-                <option value={1}>Operatore 1</option>
-                <option value={2}>Operatore 2</option>
-                <option value={3}>Operatore 3</option>
-                <option value={4}>Operatore 4</option>
-                <option value={5}>Operatore 5</option>
-              </select>
-            </div>
-            <p className="text-xs text-blue-50 mt-2">
-              Sessione: {session || `operator-${operator}`}
-            </p>
-          </CardContent>
-        </Card>
-
         {/* Scanner Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Camera className="w-5 h-5" />
-              Scanner QR
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                Scanner QR
+              </div>
+              <span className="text-sm font-normal text-gray-500">
+                Operatore {operator}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

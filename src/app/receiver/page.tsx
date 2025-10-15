@@ -109,6 +109,7 @@ function ReceiverContent() {
   const [target, setTarget] = useState<'_self' | '_blank'>('_self');
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
   const [blockedUrl, setBlockedUrl] = useState<string>('');
+  const [error, setError] = useState<string>('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
 
@@ -285,7 +286,38 @@ function ReceiverContent() {
   }, [searchParams, operator, addLog]);
 
   // Handle operator change
-  const handleOperatorChange = (newOperator: number) => {
+  const handleOperatorChange = async (newOperator: number) => {
+    // CRITICAL: Block operator change if current session is active
+    if (isSessionActive) {
+      addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
+      setError('Ferma la sessione prima di cambiare operatore.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    
+    // CRITICAL: Check if target operator has an active session
+    const targetSession = generateOperatorSession(newOperator);
+    try {
+      const response = await fetch(`/api/qrseat/status?session=${encodeURIComponent(targetSession)}`);
+      const data = await response.json();
+      
+      if (data.ok && data.active === true) {
+        addLog(`❌ Operatore ${newOperator} ha già una sessione attiva!`, true);
+        setError(`Operatore ${newOperator} non disponibile (sessione attiva).`);
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+    } catch (err) {
+      addLog(`⚠️ Errore verifica disponibilità operatore: ${err}`, true);
+    }
+    
+    // CRITICAL: Reset all data when changing operator
+    setLogs([]);
+    setStatus('Inizializzazione...');
+    setBlockedUrl('');
+    setIsSessionActive(false);
+    prevIsSessionActive.current = false;
+    
     setOperator(newOperator);
     saveOperator(newOperator);
     
@@ -309,7 +341,8 @@ function ReceiverContent() {
     
     generateQrCode(senderUrlStr).then(qrUrl => {
       setQrDataUrl(qrUrl);
-      addLog(`✅ Cambiato a Operatore ${newOperator} - Nuova sessione: ${newSession}`);
+      addLog(`✅ Cambiato a Operatore ${newOperator} - Sessione: ${newSession}`);
+      addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
     }).catch(err => {
       addLog('Errore generazione QR: ' + err, true);
     });
