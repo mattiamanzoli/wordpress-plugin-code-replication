@@ -152,11 +152,8 @@ function ReceiverContent() {
   const checkAdminOperatorStates = useCallback(async () => {
     const states: Record<number, { active: boolean; loading: boolean }> = {};
     
-    for (let i = 1; i <= 5; i++) {
-      states[i] = { active: false, loading: true };
-    }
-    setAdminOperatorStates(states);
-    
+    // OPTIMIZED: Don't show loading if we already have data
+    // Just fetch in background and update only if changed
     for (let i = 1; i <= 5; i++) {
       const operatorSession = generateOperatorSession(i);
       try {
@@ -172,7 +169,20 @@ function ReceiverContent() {
       }
     }
     
-    setAdminOperatorStates({ ...states });
+    // CRITICAL: Only update if state actually changed (prevents unnecessary re-renders)
+    setAdminOperatorStates(prev => {
+      // Compare new state with previous state
+      let hasChanged = false;
+      for (let i = 1; i <= 5; i++) {
+        if (!prev[i] || prev[i].active !== states[i].active || prev[i].loading !== states[i].loading) {
+          hasChanged = true;
+          break;
+        }
+      }
+      
+      // Only update if something changed
+      return hasChanged ? states : prev;
+    });
   }, []);
 
   // Admin: Stop a specific operator session
