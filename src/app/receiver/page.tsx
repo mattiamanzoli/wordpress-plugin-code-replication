@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Settings, Play, Square, Users, Shield } from "lucide-react";
+import { Copy, Settings, Play, Square, Users, Shield, X } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
 
@@ -687,16 +687,25 @@ function ReceiverContent() {
                     Il browser ha bloccato l'apertura automatica. Clicca il pulsante per aprire manualmente.
                   </p>
                 </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    window.open(blockedUrl, '_blank', 'noopener,noreferrer');
-                    setBlockedUrl('');
-                  }}
-                  className="shrink-0"
-                >
-                  Apri Link
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="lg"
+                    onClick={() => {
+                      window.open(blockedUrl, '_blank', 'noopener,noreferrer');
+                      setBlockedUrl('');
+                    }}
+                  >
+                    Apri Link
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    onClick={() => setBlockedUrl('')}
+                    className="px-3"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
