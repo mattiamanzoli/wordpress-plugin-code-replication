@@ -327,20 +327,17 @@ function ReceiverContent() {
       sessionId = urlParams.get('session');
     }
     
-    // Generate session based on selected operator
+    // CRITICAL: Do NOT generate session automatically - wait for operator selection
     if (!sessionId) {
-      sessionId = generateOperatorSession(operator);
-      addLog(`Sessione generata per Operatore ${operator}: ${sessionId}`);
-    } else {
-      addLog(`Sessione esistente: ${sessionId}`);
+      addLog('⚠️ Nessuna sessione attiva. Seleziona un operatore per iniziare.');
+      setStatus('Nessuna sessione - Seleziona un operatore');
+      return;
     }
 
+    // Existing session from URL
+    addLog(`Sessione esistente: ${sessionId}`);
     saveSessionToStorage(sessionId);
     setSession(sessionId);
-
-    const url = new URL(window.location.href);
-    url.searchParams.set('session', sessionId);
-    window.history.replaceState(null, '', url.toString());
 
     const senderUrlObj = new URL(window.location.origin);
     senderUrlObj.pathname = '/sender';
@@ -358,7 +355,7 @@ function ReceiverContent() {
     });
 
     addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
-  }, [searchParams, operator, addLog]);
+  }, [searchParams, addLog]);
 
   // Handle operator change
   const handleOperatorChange = async (newOperator: number) => {
@@ -401,28 +398,32 @@ function ReceiverContent() {
     setSession(newSession);
     saveSessionToStorage(newSession);
     
-    // Update URL
+    // CRITICAL: Update browser URL with new session parameter
     const url = new URL(window.location.href);
     url.searchParams.set('session', newSession);
     window.history.replaceState(null, '', url.toString());
+    addLog(`✅ URL pagina aggiornato: ${url.toString()}`);
     
-    // CRITICAL: Update sender URL and QR code
+    // CRITICAL: Update sender URL and regenerate QR code
     const senderUrlObj = new URL(window.location.origin);
     senderUrlObj.pathname = '/sender';
     senderUrlObj.searchParams.set('session', newSession);
     const senderUrlStr = senderUrlObj.toString();
     
     setSenderUrl(senderUrlStr);
+    addLog(`✅ URL Sender aggiornato: ${senderUrlStr}`);
     
     // CRITICAL: Regenerate QR code for new operator
-    generateQrCode(senderUrlStr).then(qrUrl => {
+    try {
+      const qrUrl = await generateQrCode(senderUrlStr);
       setQrDataUrl(qrUrl);
+      addLog(`✅ QR Code rigenerato per Operatore ${newOperator}`);
       addLog(`✅ Cambiato a Operatore ${newOperator} - Sessione: ${newSession}`);
-      addLog(`✅ QR Code aggiornato per Operatore ${newOperator}`);
       addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
-    }).catch(err => {
+      setStatus('Sessione in pausa - Premi "Avvia Sessione"');
+    } catch (err) {
       addLog('Errore generazione QR: ' + err, true);
-    });
+    }
     
     // CRITICAL: Refresh active operators list after change
     checkActiveOperators();
