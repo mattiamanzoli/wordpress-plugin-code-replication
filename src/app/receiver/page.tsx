@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, Suspense, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +98,7 @@ const generateQrCode = async (url: string): Promise<string> => {
 
 function ReceiverContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [session, setSession] = useState<string>('');
   const [operator, setOperator] = useState<number>(0);
   const [logs, setLogs] = useState<string[]>([]);
@@ -486,11 +487,9 @@ function ReceiverContent() {
     setSession(newSession);
     saveSessionToStorage(newSession);
     
-    // CRITICAL: Update browser URL with new session parameter
-    const url = new URL(window.location.href);
-    url.searchParams.set('session', newSession);
-    window.history.replaceState(null, '', url.toString());
-    addLog(`✅ URL pagina aggiornato: ${url.toString()}`);
+    // CRITICAL: Use Next.js router instead of window.history for proper sync
+    router.push(`/receiver?session=${encodeURIComponent(newSession)}`);
+    addLog(`✅ URL pagina aggiornato con router Next.js`);
     
     // CRITICAL: Update sender URL and regenerate QR code
     const senderUrlObj = new URL(window.location.origin);
