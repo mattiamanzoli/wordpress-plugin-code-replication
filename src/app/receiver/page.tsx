@@ -26,12 +26,12 @@ function generateOperatorSession(operatorId: number): string {
 
 // Load/save operator selection
 function loadOperator(): number {
-  if (typeof window === 'undefined') return 1;
+  if (typeof window === 'undefined') return 0;
   try {
     const stored = localStorage.getItem('qrseat-operator');
-    return stored ? parseInt(stored) : 1;
+    return stored ? parseInt(stored) : 0;
   } catch {
-    return 1;
+    return 0;
   }
 }
 
