@@ -725,14 +725,10 @@ function ReceiverContent() {
             </label>
             <select
               value={operator}
-              onChange={(e) => {
-                const newOp = parseInt(e.target.value);
-                console.log('🖱️ SELECT: Operatore', operator, '→', newOp);
-                handleOperatorChange(newOp);
-              }}
-              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg"
+              onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100"
             >
-              <option value={0} disabled>Seleziona un operatore...</option>
+              <option value={0}>Seleziona un operatore...</option>
               <option value={1}>Operatore 1</option>
               <option value={2}>Operatore 2</option>
               <option value={3}>Operatore 3</option>
