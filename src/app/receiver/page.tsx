@@ -524,24 +524,7 @@ function ReceiverContent() {
     console.log('🟢 Sessione attiva?', isSessionActive);
     console.log('📊 Operatori attivi:', Array.from(activeOperators));
     
-    // CRITICAL: Prevent selecting placeholder
-    if (newOperator === 0) {
-      console.warn('⚠️ Operatore 0 non valido, uscita');
-      console.groupEnd();
-      return;
-    }
-    
     addLog(`🔄 Cambio operatore a ${newOperator}...`);
-    
-    // CRITICAL: Block operator change if current session is active
-    if (isSessionActive) {
-      console.error('❌ BLOCCO: Sessione attiva, cambio negato');
-      addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
-      setError('Ferma la sessione prima di cambiare operatore.');
-      setTimeout(() => setError(''), 3000);
-      console.groupEnd();
-      return;
-    }
     
     // Set operator immediately
     setOperator(newOperator);
@@ -747,8 +730,7 @@ function ReceiverContent() {
                 console.log('🖱️ SELECT: Operatore', operator, '→', newOp);
                 handleOperatorChange(newOp);
               }}
-              disabled={isSessionActive}
-              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 font-semibold text-lg"
             >
               <option value={0} disabled>Seleziona un operatore...</option>
               <option value={1}>Operatore 1</option>
@@ -769,7 +751,6 @@ function ReceiverContent() {
               onClick={toggleSession}
               variant={isSessionActive ? "destructive" : "default"}
               size="lg"
-              disabled={!session || operator === 0}
             >
               {isSessionActive ? (
                 <>
