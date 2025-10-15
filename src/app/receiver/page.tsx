@@ -223,18 +223,34 @@ function ReceiverContent() {
     // Force user to manually select operator every time
     setOperator(0);
     
-    // CRITICAL: Check active operators on mount
-    checkActiveOperators();
-  }, [checkActiveOperators]);
+    // CRITICAL: Check active operators on mount (chiamata diretta)
+    const checkInitialOperators = async () => {
+      const activeOps = new Set<number>();
+      for (let i = 1; i <= 5; i++) {
+        const operatorSession = generateOperatorSession(i);
+        try {
+          const response = await fetch(`/api/qrseat/status?session=${encodeURIComponent(operatorSession)}`);
+          const data = await response.json();
+          if (data.ok && data.active === true) {
+            activeOps.add(i);
+          }
+        } catch (err) {
+          // Ignore
+        }
+      }
+      setActiveOperators(activeOps);
+    };
+    checkInitialOperators();
+  }, []); // FIXED: Dipendenze vuote per evitare loop
 
   // CRITICAL: Periodically refresh active operators list
   useEffect(() => {
     const interval = setInterval(() => {
       checkActiveOperators();
-      if (operator === 1) {
+      if (operator > 0) {
         checkAdminOperatorStates();
       }
-    }, 3000); // Check every 3 seconds
+    }, 3000);
     
     return () => clearInterval(interval);
   }, [checkActiveOperators, checkAdminOperatorStates, operator]);
@@ -431,6 +447,8 @@ function ReceiverContent() {
     // CRITICAL: Prevent selecting placeholder
     if (newOperator === 0) return;
     
+    addLog(`🔄 Cambio operatore a ${newOperator}...`);
+    
     // CRITICAL: Block operator change if current session is active
     if (isSessionActive) {
       addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
@@ -455,8 +473,8 @@ function ReceiverContent() {
       addLog(`⚠️ Errore verifica disponibilità operatore: ${err}`, true);
     }
     
-    // CRITICAL: Reset all data when changing operator
-    setLogs([]);
+    // CRITICAL: Reset state when changing operator
+    addLog(`✅ Operatore ${newOperator} disponibile, inizializzazione...`);
     setStatus('Inizializzazione...');
     setBlockedUrl('');
     setIsSessionActive(false);
@@ -500,8 +518,8 @@ function ReceiverContent() {
     // CRITICAL: Refresh active operators list after change
     checkActiveOperators();
     
-    // If switching to operator 1, load admin panel
-    if (newOperator === 1) {
+    // If switching to any operator, load admin panel
+    if (newOperator > 0) {
       checkAdminOperatorStates();
     }
   };
@@ -695,13 +713,13 @@ function ReceiverContent() {
           </Card>
         )}
 
-        {/* Admin Panel - Only for Operator 1 */}
-        {operator === 1 && (
+        {/* Admin Panel - Available to ALL operators */}
+        {operator > 0 && (
           <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                Pannello Admin - Controllo Operatori
+                Pannello Controllo Operatori
               </CardTitle>
             </CardHeader>
             <CardContent>
