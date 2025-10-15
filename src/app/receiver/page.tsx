@@ -462,11 +462,19 @@ function ReceiverContent() {
     
     addLog(`🔄 Cambio operatore a ${newOperator}...`);
     
+    // CRITICAL: Set operator immediately to keep select visually updated
+    const previousOperator = operator;
+    setOperator(newOperator);
+    saveOperator(newOperator);
+    
     // CRITICAL: Block operator change if current session is active
     if (isSessionActive) {
       addLog('❌ Impossibile cambiare operatore: sessione attiva!', true);
       setError('Ferma la sessione prima di cambiare operatore.');
       setTimeout(() => setError(''), 3000);
+      // Reset to previous operator
+      setOperator(previousOperator);
+      saveOperator(previousOperator);
       return;
     }
     
@@ -480,6 +488,9 @@ function ReceiverContent() {
         addLog(`❌ Operatore ${newOperator} ha già una sessione attiva!`, true);
         setError(`Operatore ${newOperator} non disponibile (sessione attiva).`);
         setTimeout(() => setError(''), 3000);
+        // Reset to previous operator
+        setOperator(previousOperator);
+        saveOperator(previousOperator);
         return;
       }
     } catch (err) {
@@ -492,9 +503,6 @@ function ReceiverContent() {
     setBlockedUrl('');
     setIsSessionActive(false);
     prevIsSessionActive.current = false;
-    
-    setOperator(newOperator);
-    saveOperator(newOperator);
     
     // Generate new session for selected operator
     const newSession = generateOperatorSession(newOperator);
