@@ -644,34 +644,32 @@ function ReceiverContent() {
             )}
           </div>
           
-          {operator > 0 && (
-            <div className="mt-4 flex items-center justify-center gap-3">
-              <Button
-                onClick={toggleSession}
-                variant={isSessionActive ? "destructive" : "default"}
-                size="lg"
-                disabled={!session}
-              >
-                {isSessionActive ? (
-                  <>
-                    <Square className="w-5 h-5 mr-2" />
-                    Ferma Sessione
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 mr-2" />
-                    Avvia Sessione
-                  </>
-                )}
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Button
+              onClick={toggleSession}
+              variant={isSessionActive ? "destructive" : "default"}
+              size="lg"
+              disabled={!session || operator === 0}
+            >
+              {isSessionActive ? (
+                <>
+                  <Square className="w-5 h-5 mr-2" />
+                  Ferma Sessione
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 mr-2" />
+                  Avvia Sessione
+                </>
+              )}
+            </Button>
+            <Link href="/config">
+              <Button variant="outline" size="lg">
+                <Settings className="w-4 h-4 mr-2" />
+                Configurazione
               </Button>
-              <Link href="/config">
-                <Button variant="outline" size="lg">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configurazione
-                </Button>
-              </Link>
-            </div>
-          )}
+            </Link>
+          </div>
         </div>
 
         {/* Blocked URL Banner */}
