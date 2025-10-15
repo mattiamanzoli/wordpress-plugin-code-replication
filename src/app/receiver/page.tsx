@@ -124,13 +124,16 @@ function ReceiverContent() {
   }, []);
 
   // Check which operators have active sessions
-  const checkActiveOperators = useCallback(async () => {
+  const checkActiveOperators = useCallback(async (currentOperator?: number) => {
     const activeOps = new Set<number>();
+    
+    // Use passed operator or fall back to state
+    const operatorToSkip = currentOperator !== undefined ? currentOperator : operator;
     
     // Check all 5 operators
     for (let i = 1; i <= 5; i++) {
       // CRITICAL: Skip checking current operator to avoid self-blocking
-      if (i === operator) continue;
+      if (i === operatorToSkip) continue;
       
       const operatorSession = generateOperatorSession(i);
       try {
@@ -526,7 +529,7 @@ function ReceiverContent() {
     }
     
     // CRITICAL: Refresh active operators list after change
-    checkActiveOperators();
+    checkActiveOperators(newOperator);
     
     // If switching to any operator, load admin panel
     if (newOperator > 0) {
