@@ -4,6 +4,7 @@ import path from "node:path";
 const LOADER = path.resolve(__dirname, 'src/visual-edits/component-tagger-loader.js');
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       {
@@ -41,7 +42,5 @@ const nextConfig = {
   assetPrefix: `/${repo}/`,  // assicura che asset e chunk puntino al sotto-path
   trailingSlash: true,       // produce /percorso/index.html (compatibile hosting statico)
 };
-
-export default nextConfig;
 
 export default nextConfig;
