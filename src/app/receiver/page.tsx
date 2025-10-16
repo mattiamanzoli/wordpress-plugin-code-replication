@@ -969,14 +969,6 @@ function ReceiverContent() {
                   </>
                 )}
               </Button>
-              {isOperatorLoaded && operator === 1 && (
-                <Link href="/config">
-                  <Button variant="outline" size="lg">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Configurazione
-                  </Button>
-                </Link>
-              )}
             </div>
           </div>
 
@@ -1036,9 +1028,17 @@ function ReceiverContent() {
           {operator === 1 && (
             <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                  Pannello Controllo Operatori
+                <CardTitle className="flex items-center gap-2 justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                    Pannello Controllo Admin
+                  </div>
+                  <Link href="/config">
+                    <Button variant="outline" size="sm">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurazione
+                    </Button>
+                  </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent>
