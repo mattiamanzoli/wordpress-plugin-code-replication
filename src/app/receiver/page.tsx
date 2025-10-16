@@ -1047,7 +1047,8 @@ function ReceiverContent() {
                     const state = adminOperatorStates[op];
                     const isCurrentOperator = op === operator;
                     const viewers = activeViewers[op] || [];
-                    const viewerName = viewers.length > 0 ? viewers[0] : null;
+                    // UPDATED: Show all viewer names, not just the first one
+                    const viewerNames = viewers.length > 0 ? viewers.join(', ') : null;
                     
                     return (
                       <div 
@@ -1057,7 +1058,7 @@ function ReceiverContent() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
                             <Badge variant={isCurrentOperator ? "default" : "outline"}>
-                              Operatore {op} {viewerName && `(${viewerName})`} {isCurrentOperator && '(Tu)'}
+                              Operatore {op} {viewerNames && `(${viewerNames})`} {isCurrentOperator && '(Tu)'}
                             </Badge>
                             {state?.loading ? (
                               <span className="text-sm text-gray-500">Caricamento...</span>
