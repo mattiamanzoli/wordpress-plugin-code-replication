@@ -166,6 +166,7 @@ function ReceiverContent() {
   const [error, setError] = useState<string>('');
   const [activeOperators, setActiveOperators] = useState<Set<number>>(new Set());
   const [adminOperatorStates, setAdminOperatorStates] = useState<Record<number, { active: boolean; loading: boolean }>>({});
+  const [activeViewers, setActiveViewers] = useState<Record<number, string[]>>({});
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
   
@@ -247,6 +248,33 @@ function ReceiverContent() {
       // Only update if something changed
       return hasChanged ? states : prev;
     });
+  }, []);
+
+  // NEW: Fetch active viewers for all operators
+  const fetchActiveViewers = useCallback(async () => {
+    try {
+      const response = await fetch('/api/qrseat/viewers');
+      const data = await response.json();
+      
+      if (data.ok && Array.isArray(data.viewers)) {
+        // Group viewers by operatorId
+        const viewersByOperator: Record<number, string[]> = {};
+        
+        for (let i = 1; i <= 5; i++) {
+          viewersByOperator[i] = [];
+        }
+        
+        data.viewers.forEach((viewer: any) => {
+          if (viewer.operatorId >= 1 && viewer.operatorId <= 5) {
+            viewersByOperator[viewer.operatorId].push(viewer.operatorName);
+          }
+        });
+        
+        setActiveViewers(viewersByOperator);
+      }
+    } catch (err) {
+      console.error('Errore fetch viewers:', err);
+    }
   }, []);
 
   // Admin: Stop a specific operator session
@@ -455,10 +483,12 @@ function ReceiverContent() {
       checkActiveOperators();
       // FIXED: Always update admin panel, even without operator selected
       checkAdminOperatorStates();
+      // NEW: Fetch active viewers for admin panel
+      fetchActiveViewers();
     }, 2000); // OPTIMIZED: Reduced from 3000ms to 2000ms for faster sync
     
     return () => clearInterval(interval);
-  }, [checkActiveOperators, checkAdminOperatorStates]);
+  }, [checkActiveOperators, checkAdminOperatorStates, fetchActiveViewers]);
 
   // CRITICAL: Sync session state with server on mount
   useEffect(() => {
