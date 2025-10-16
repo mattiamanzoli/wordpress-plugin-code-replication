@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Settings, Play, Square, Users, Shield, X } from "lucide-react";
+import { Copy, Settings, Play, Square, Users, Shield, X, LogOut } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import {
@@ -170,10 +170,8 @@ function ReceiverContent() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
   
-  // NEW: Operator name identification
-  const [showNameDialog, setShowNameDialog] = useState<boolean>(false);
+  // MODIFIED: Remove name dialog states, get from localStorage
   const [operatorName, setOperatorName] = useState<string>('');
-  const [tempOperatorName, setTempOperatorName] = useState<string>('');
   const [deviceId] = useState<string>(() => loadDeviceId());
   const viewerPollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -396,26 +394,41 @@ function ReceiverContent() {
     }
   }, [operator, operatorName, isSessionActive, unregisterViewer, router, addLog]);
 
-  // NEW: Show name dialog on first visit
+  // NEW: Check if logged in and redirect to login if not
   useEffect(() => {
-    const storedName = loadOperatorName();
-    if (storedName) {
-      setOperatorName(storedName);
-      setTempOperatorName(storedName);
-    } else {
-      setShowNameDialog(true);
+    const isLoggedIn = localStorage.getItem('qrseat-logged-in');
+    const storedOperator = localStorage.getItem('qrseat-operator');
+    const storedName = localStorage.getItem('qrseat-operator-name');
+    
+    if (!isLoggedIn || !storedOperator || !storedName) {
+      router.push('/login');
+      return;
     }
-  }, []);
+    
+    // Load operator and name from localStorage
+    const operatorNum = parseInt(storedOperator);
+    setOperator(operatorNum);
+    setOperatorName(storedName);
+    addLog(`✅ Benvenuto, ${storedName}! Operatore ${operatorNum} caricato.`);
+  }, [router, addLog]);
 
-  // NEW: Handle name dialog confirmation
-  const handleNameConfirm = () => {
-    if (tempOperatorName.trim()) {
-      const name = tempOperatorName.trim();
-      setOperatorName(name);
-      saveOperatorName(name);
-      setShowNameDialog(false);
-      addLog(`✅ Benvenuto, ${name}!`);
+  // NEW: Logout function
+  const handleLogout = async () => {
+    if (isSessionActive) {
+      addLog('❌ Ferma la sessione prima di fare logout!', true);
+      return;
     }
+    
+    // Unregister viewer
+    await unregisterViewer();
+    
+    // Clear localStorage
+    localStorage.removeItem('qrseat-logged-in');
+    localStorage.removeItem('qrseat-operator');
+    localStorage.removeItem('qrseat-operator-name');
+    
+    // Redirect to login
+    router.push('/login');
   };
 
   // NEW: Register viewer when operator changes
@@ -444,7 +457,7 @@ function ReceiverContent() {
     };
   }, [unregisterViewer]);
 
-  // Load config on mount
+  // MODIFIED: Load config on mount - NO operator dialog, NO operator dropdown
   useEffect(() => {
     const config = loadConfig();
     if (config) {
@@ -453,11 +466,7 @@ function ReceiverContent() {
       if (config.target) setTarget(config.target);
     }
     
-    // CRITICAL: Do NOT load operator from localStorage on mount
-    // Force user to manually select operator every time
-    setOperator(0);
-    
-    // CRITICAL: Check active operators on mount (chiamata diretta)
+    // Check active operators on mount
     const checkInitialOperators = async () => {
       const activeOps = new Set<number>();
       for (let i = 1; i <= 5; i++) {
@@ -475,7 +484,7 @@ function ReceiverContent() {
       setActiveOperators(activeOps);
     };
     checkInitialOperators();
-  }, []); // FIXED: Dipendenze vuote per evitare loop
+  }, []);
 
   // CRITICAL: Periodically refresh active operators list
   useEffect(() => {
@@ -669,8 +678,10 @@ function ReceiverContent() {
     };
   }, [session, isSessionActive, pollingInterval, baseUrl, target, addLog]);
 
-  // MODIFIED: Initialize session with operator-based ID
+  // MODIFIED: Initialize session - use operator from localStorage
   useEffect(() => {
+    if (!operator || !operatorName) return; // Wait for login check
+    
     let sessionId = searchParams.get('session');
     
     if (!sessionId && typeof window !== 'undefined') {
@@ -678,26 +689,12 @@ function ReceiverContent() {
       sessionId = urlParams.get('session');
     }
     
-    // CRITICAL: Do NOT generate session automatically - wait for operator selection
+    // Generate session for logged-in operator
     if (!sessionId) {
-      addLog('⚠️ Nessuna sessione attiva. Seleziona un operatore per iniziare.');
-      setStatus('Nessuna sessione - Seleziona un operatore');
-      return;
+      sessionId = generateOperatorSession(operator);
     }
 
-    // CRITICAL: Extract operator number from session ID (e.g., "operator-1" -> 1)
-    const operatorMatch = sessionId.match(/^operator-(\d+)$/);
-    if (operatorMatch) {
-      const operatorNum = parseInt(operatorMatch[1]);
-      if (operatorNum >= 1 && operatorNum <= 5) {
-        setOperator(operatorNum);
-        saveOperator(operatorNum);
-        addLog(`✅ Operatore ${operatorNum} rilevato dall'URL`);
-      }
-    }
-
-    // Existing session from URL
-    addLog(`Sessione esistente: ${sessionId}`);
+    addLog(`Sessione inizializzata: ${sessionId}`);
     saveSessionToStorage(sessionId);
     setSession(sessionId);
 
@@ -717,7 +714,7 @@ function ReceiverContent() {
     });
 
     addLog('Sistema pronto. Premi "Avvia Sessione" per iniziare.');
-  }, [searchParams, addLog]);
+  }, [operator, operatorName, searchParams, addLog]);
 
   // Handle operator change
   const handleOperatorChange = async (newOperator: number) => {
@@ -914,44 +911,6 @@ function ReceiverContent() {
 
   return (
     <>
-      {/* Name Dialog */}
-      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Identificazione Operatore</DialogTitle>
-            <DialogDescription>
-              Inserisci il tuo nome per identificarti su questo dispositivo. Questo permette di tracciare chi sta utilizzando quale operatore.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="operator-name">Nome Operatore</Label>
-              <Input
-                id="operator-name"
-                placeholder="Es: Marco, Luigi, Sara..."
-                value={tempOperatorName}
-                onChange={(e) => setTempOperatorName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && tempOperatorName.trim()) {
-                    handleNameConfirm();
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              onClick={handleNameConfirm} 
-              disabled={!tempOperatorName.trim()}
-              className="w-full"
-            >
-              Conferma
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="text-center mb-8">
@@ -969,30 +928,24 @@ function ReceiverContent() {
               </div>
             )}
             
-            {/* Operator Selector */}
+            {/* MODIFIED: Show logged-in operator info instead of dropdown */}
             <div className="mt-6 flex items-center justify-center gap-3">
               <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Seleziona Operatore:
-              </label>
-              <select
-                value={operator}
-                onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+              <Badge variant="default" className="text-base px-4 py-2">
+                {operatorName} - Operatore {operator}
+              </Badge>
+              <Badge variant="outline" className="text-sm px-3 py-1">
+                operator-{operator}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
                 disabled={isSessionActive}
-                className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isSessionActive ? 'Ferma la sessione prima di fare logout' : 'Logout'}
               >
-                <option value={0}>Seleziona un operatore...</option>
-                <option value={1} disabled={activeOperators.has(1)}>Operatore 1{activeOperators.has(1) ? ' (Sessione Attiva)' : ''}</option>
-                <option value={2} disabled={activeOperators.has(2)}>Operatore 2{activeOperators.has(2) ? ' (Sessione Attiva)' : ''}</option>
-                <option value={3} disabled={activeOperators.has(3)}>Operatore 3{activeOperators.has(3) ? ' (Sessione Attiva)' : ''}</option>
-                <option value={4} disabled={activeOperators.has(4)}>Operatore 4{activeOperators.has(4) ? ' (Sessione Attiva)' : ''}</option>
-                <option value={5} disabled={activeOperators.has(5)}>Operatore 5{activeOperators.has(5) ? ' (Sessione Attiva)' : ''}</option>
-              </select>
-              {operator > 0 && (
-                <Badge variant="outline" className="text-base px-4 py-1">
-                  Sessione: operator-{operator}
-                </Badge>
-              )}
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
             
             <div className="mt-4 flex items-center justify-center gap-3">
@@ -1014,24 +967,7 @@ function ReceiverContent() {
                 )}
               </Button>
               <Link href="/config">
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  onClick={() => {
-                    console.group('🖱️ CLICK: Link Configurazione');
-                    console.log('⏰ Timestamp:', new Date().toISOString());
-                    console.log('🔗 Destinazione: /config');
-                    console.log('📊 Stato corrente:', {
-                      session,
-                      operator,
-                      isSessionActive,
-                      baseUrl,
-                      pollingInterval,
-                      target
-                    });
-                    console.groupEnd();
-                  }}
-                >
+                <Button variant="outline" size="lg">
                   <Settings className="w-4 h-4 mr-2" />
                   Configurazione
                 </Button>
