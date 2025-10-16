@@ -31,5 +31,17 @@ const nextConfig: NextConfig = {
     }
   }
 };
+// next.config.ts
+const repo = "wordpress-plugin-code-replication";
+
+const nextConfig = {
+  output: "export",          // genera HTML statico in /out
+  images: { unoptimized: true }, // disattiva Image Optimization (richiede server)
+  basePath: `/${repo}`,      // necessario perché GitHub Pages pubblica in /<repo>
+  assetPrefix: `/${repo}/`,  // assicura che asset e chunk puntino al sotto-path
+  trailingSlash: true,       // produce /percorso/index.html (compatibile hosting statico)
+};
+
+export default nextConfig;
 
 export default nextConfig;
