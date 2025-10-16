@@ -174,6 +174,8 @@ function ReceiverContent() {
   const [operatorName, setOperatorName] = useState<string>('');
   const [deviceId] = useState<string>(() => loadDeviceId());
   const viewerPollingRef = useRef<NodeJS.Timeout | null>(null);
+  // CRITICAL: Track if operator is fully loaded
+  const [isOperatorLoaded, setIsOperatorLoaded] = useState<boolean>(false);
 
   // CRITICAL: Define addLog BEFORE any useEffect that uses it
   const addLog = useCallback((message: string, isError: boolean = false) => {
@@ -409,6 +411,7 @@ function ReceiverContent() {
     const operatorNum = parseInt(storedOperator);
     setOperator(operatorNum);
     setOperatorName(storedName);
+    setIsOperatorLoaded(true); // CRITICAL: Mark as loaded
     addLog(`✅ Benvenuto, ${storedName}! Operatore ${operatorNum} caricato.`);
   }, [router, addLog]);
 
@@ -966,7 +969,7 @@ function ReceiverContent() {
                   </>
                 )}
               </Button>
-              {operator === 1 && (
+              {isOperatorLoaded && operator === 1 && (
                 <Link href="/config">
                   <Button variant="outline" size="lg">
                     <Settings className="w-4 h-4 mr-2" />
