@@ -20,10 +20,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const operatorId = searchParams.get('operatorId');
     
-    if (!operatorId) {
-      return NextResponse.json({ ok: false, error: 'Missing operatorId' }, { status: 400 });
-    }
-    
     await fs.mkdir(DATA_DIR, { recursive: true });
     const viewersFile = path.join(DATA_DIR, 'viewers.json');
     
@@ -36,14 +32,21 @@ export async function GET(request: NextRequest) {
       viewers = [];
     }
     
-    // Filter viewers for this operator and remove stale entries (>10 seconds old)
+    // Remove stale entries (>10 seconds old)
     const now = Date.now();
-    const activeViewers = viewers.filter(v => 
-      v.operatorId === parseInt(operatorId) && 
-      (now - v.timestamp) < 10000
-    );
+    viewers = viewers.filter(v => (now - v.timestamp) < 10000);
     
-    return NextResponse.json({ ok: true, viewers: activeViewers });
+    // FIXED: If operatorId is specified, filter for that operator
+    // If not specified, return ALL active viewers (for admin panel)
+    if (operatorId) {
+      const activeViewers = viewers.filter(v => 
+        v.operatorId === parseInt(operatorId)
+      );
+      return NextResponse.json({ ok: true, viewers: activeViewers });
+    } else {
+      // Return all active viewers (for admin to see all)
+      return NextResponse.json({ ok: true, viewers });
+    }
   } catch (err) {
     console.error('Error getting viewers:', err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
