@@ -1,0 +1,15 @@
+{
+  "session": "DEDUP_TEST",
+  "messages": [
+    {
+      "id": "ID_AAA",
+      "ver": 1,
+      "timestamp": 1760561883590
+    },
+    {
+      "id": "ID_BBB",
+      "ver": 2,
+      "timestamp": 1760561883918
+    }
+  ]
+}
