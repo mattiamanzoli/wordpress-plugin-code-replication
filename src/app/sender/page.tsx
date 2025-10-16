@@ -117,6 +117,7 @@ function SenderContent() {
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [sessionActive, setSessionActive] = useState<boolean>(false);
   const [operator, setOperator] = useState<number>(1);
+  const [messageTTL, setMessageTTL] = useState<number>(300000);
   const statusCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
 
@@ -135,6 +136,12 @@ function SenderContent() {
       if (config.baseUrl) setBaseUrl(config.baseUrl);
       if (config.mode) setMode(config.mode);
       if (typeof config.redirect === 'boolean') setRedirect(config.redirect);
+      if (config.messageTTL) {
+        const ttlValue = Number(config.messageTTL);
+        if (!Number.isNaN(ttlValue)) {
+          setMessageTTL(ttlValue);
+        }
+      }
     }
     
     // Load operator selection
@@ -407,7 +414,7 @@ function SenderContent() {
       const response = await fetch('/api/qrseat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session: currentSession, id })
+        body: JSON.stringify({ session: currentSession, id, messageTTL })
       });
 
       const data = await response.json();
