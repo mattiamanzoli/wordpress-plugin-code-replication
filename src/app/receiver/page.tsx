@@ -1105,26 +1105,32 @@ function ReceiverContent() {
                   {[1, 2, 3, 4, 5].map((op) => {
                     const state = adminOperatorStates[op];
                     const isCurrentOperator = op === operator;
+                    const viewers = activeViewers[op] || [];
                     
                     return (
                       <div 
                         key={op}
                         className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
                       >
-                        <div className="flex items-center gap-3">
-                          <Badge variant={isCurrentOperator ? "default" : "outline"}>
-                            Operatore {op} {isCurrentOperator && '(Tu)'}
-                          </Badge>
-                          {state?.loading ? (
-                            <span className="text-sm text-gray-500">Caricamento...</span>
-                          ) : (
-                            <Badge 
-                              variant={state?.active ? "destructive" : "secondary"}
-                              className="text-xs"
-                            >
-                              {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Badge variant={isCurrentOperator ? "default" : "outline"}>
+                              Operatore {op} {isCurrentOperator && '(Tu)'}
                             </Badge>
-                          )}
+                            {state?.loading ? (
+                              <span className="text-sm text-gray-500">Caricamento...</span>
+                            ) : (
+                              <Badge 
+                                variant={state?.active ? "destructive" : "secondary"}
+                                className="text-xs"
+                              >
+                                {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            👥 Operatori fisici: {viewers.length > 0 ? viewers.join(', ') : 'Nessuno'}
+                          </div>
                         </div>
                         {!isCurrentOperator && state?.active && (
                           <Button
