@@ -1098,26 +1098,6 @@ function ReceiverContent() {
               <CardContent className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Session ID:
-                  </label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm font-mono">
-                      {session || '—'}
-                    </code>
-                    <Button
-                      id="copy-session"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(session, 'copy-session')}
-                      disabled={!session}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     URL Sender:
                   </label>
                   <div className="flex items-center gap-2 mt-1">
@@ -1142,9 +1122,6 @@ function ReceiverContent() {
                 </div>
 
                 <div className="flex flex-col items-center justify-center py-6">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    QR Code di Pairing
-                  </p>
                   {qrDataUrl ? (
                     <img
                       src={qrDataUrl}
