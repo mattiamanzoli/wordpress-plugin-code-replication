@@ -8,6 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Copy, Settings, Play, Square, Users, Shield, X } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Generate random session ID
 function generateSessionId(): string {
@@ -19,28 +29,46 @@ function generateSessionId(): string {
   return id;
 }
 
-// Generate session ID based on operator
-function generateOperatorSession(operatorId: number): string {
-  return `operator-${operatorId}`;
+// Generate unique device ID
+function generateDeviceId(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let id = 'device-';
+  for (let i = 0; i < 16; i++) {
+    id += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return id;
 }
 
-// Load/save operator selection
-function loadOperator(): number {
-  if (typeof window === 'undefined') return 0;
+// Load/save device ID
+function loadDeviceId(): string {
+  if (typeof window === 'undefined') return generateDeviceId();
   try {
-    const stored = localStorage.getItem('qrseat-operator');
-    return stored ? parseInt(stored) : 0;
+    const stored = localStorage.getItem('qrseat-device-id');
+    if (stored) return stored;
+    const newId = generateDeviceId();
+    localStorage.setItem('qrseat-device-id', newId);
+    return newId;
   } catch {
-    return 0;
+    return generateDeviceId();
   }
 }
 
-function saveOperator(operatorId: number) {
+// Load/save operator name
+function loadOperatorName(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem('qrseat-operator-name');
+  } catch {
+    return null;
+  }
+}
+
+function saveOperatorName(name: string) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('qrseat-operator', operatorId.toString());
+    localStorage.setItem('qrseat-operator-name', name);
   } catch (err) {
-    console.error('Errore salvataggio operatore:', err);
+    console.error('Errore salvataggio nome operatore:', err);
   }
 }
 
@@ -96,6 +124,31 @@ const generateQrCode = async (url: string): Promise<string> => {
   }
 };
 
+// Generate session ID based on operator
+function generateOperatorSession(operatorId: number): string {
+  return `operator-${operatorId}`;
+}
+
+// Load/save operator selection
+function loadOperator(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const stored = localStorage.getItem('qrseat-operator');
+    return stored ? parseInt(stored) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveOperator(operatorId: number) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('qrseat-operator', operatorId.toString());
+  } catch (err) {
+    console.error('Errore salvataggio operatore:', err);
+  }
+}
+
 function ReceiverContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -115,6 +168,13 @@ function ReceiverContent() {
   const [adminOperatorStates, setAdminOperatorStates] = useState<Record<number, { active: boolean; loading: boolean }>>({});
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const prevIsSessionActive = useRef<boolean>(false);
+  
+  // NEW: Operator name identification
+  const [showNameDialog, setShowNameDialog] = useState<boolean>(false);
+  const [operatorName, setOperatorName] = useState<string>('');
+  const [tempOperatorName, setTempOperatorName] = useState<string>('');
+  const [deviceId] = useState<string>(() => loadDeviceId());
+  const viewerPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // CRITICAL: Define addLog BEFORE any useEffect that uses it
   const addLog = useCallback((message: string, isError: boolean = false) => {
@@ -250,6 +310,111 @@ function ReceiverContent() {
       console.groupEnd();
     }
   };
+
+  // NEW: Register viewer with server
+  const registerViewer = useCallback(async (operatorId: number, name: string) => {
+    try {
+      const response = await fetch('/api/qrseat/viewers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          operatorName: name,
+          operatorId
+        })
+      });
+      
+      const data = await response.json();
+      if (data.ok) {
+        addLog(`✅ Registrato come "${name}" su Operatore ${operatorId}`);
+      }
+    } catch (err) {
+      console.error('Errore registrazione viewer:', err);
+    }
+  }, [deviceId, addLog]);
+
+  // NEW: Unregister viewer from server
+  const unregisterViewer = useCallback(async () => {
+    try {
+      await fetch(`/api/qrseat/viewers?deviceId=${encodeURIComponent(deviceId)}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.error('Errore unregister viewer:', err);
+    }
+  }, [deviceId]);
+
+  // NEW: Check if someone else started the session and redirect
+  const checkSessionConflict = useCallback(async () => {
+    if (!operator || !operatorName || isSessionActive) return;
+    
+    try {
+      // Check if session became active
+      const operatorSession = generateOperatorSession(operator);
+      const statusResponse = await fetch(`/api/qrseat/status?session=${encodeURIComponent(operatorSession)}`);
+      const statusData = await statusResponse.json();
+      
+      if (statusData.ok && statusData.active === true) {
+        // Session is now active - check if WE started it
+        // If isSessionActive is still false, someone ELSE started it
+        addLog(`⚠️ Operatore ${operator} avviato da un altro dispositivo! Reindirizzamento...`, true);
+        
+        // Unregister and redirect
+        await unregisterViewer();
+        router.push('/receiver');
+      }
+    } catch (err) {
+      console.error('Errore check session conflict:', err);
+    }
+  }, [operator, operatorName, isSessionActive, unregisterViewer, router, addLog]);
+
+  // NEW: Show name dialog on first visit
+  useEffect(() => {
+    const storedName = loadOperatorName();
+    if (storedName) {
+      setOperatorName(storedName);
+      setTempOperatorName(storedName);
+    } else {
+      setShowNameDialog(true);
+    }
+  }, []);
+
+  // NEW: Handle name dialog confirmation
+  const handleNameConfirm = () => {
+    if (tempOperatorName.trim()) {
+      const name = tempOperatorName.trim();
+      setOperatorName(name);
+      saveOperatorName(name);
+      setShowNameDialog(false);
+      addLog(`✅ Benvenuto, ${name}!`);
+    }
+  };
+
+  // NEW: Register viewer when operator changes
+  useEffect(() => {
+    if (operator > 0 && operatorName) {
+      registerViewer(operator, operatorName);
+      
+      // Start polling for session conflicts
+      viewerPollingRef.current = setInterval(() => {
+        checkSessionConflict();
+      }, 2000);
+      
+      return () => {
+        if (viewerPollingRef.current) {
+          clearInterval(viewerPollingRef.current);
+          viewerPollingRef.current = null;
+        }
+      };
+    }
+  }, [operator, operatorName, registerViewer, checkSessionConflict]);
+
+  // NEW: Unregister on unmount
+  useEffect(() => {
+    return () => {
+      unregisterViewer();
+    };
+  }, [unregisterViewer]);
 
   // Load config on mount
   useEffect(() => {
@@ -718,301 +883,341 @@ function ReceiverContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            QR-Seatable Bridge - Receiver
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Scansiona il QR code con il tuo telefono per connettere il sender
-          </p>
-          
-          {/* Error Banner */}
-          {error && (
-            <div className="mt-4 mx-auto max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
-          
-          {/* Operator Selector */}
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Seleziona Operatore:
-            </label>
-            <select
-              value={operator}
-              onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
-              disabled={isSessionActive}
-              className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <option value={0}>Seleziona un operatore...</option>
-              <option value={1} disabled={activeOperators.has(1)}>Operatore 1{activeOperators.has(1) ? ' (Sessione Attiva)' : ''}</option>
-              <option value={2} disabled={activeOperators.has(2)}>Operatore 2{activeOperators.has(2) ? ' (Sessione Attiva)' : ''}</option>
-              <option value={3} disabled={activeOperators.has(3)}>Operatore 3{activeOperators.has(3) ? ' (Sessione Attiva)' : ''}</option>
-              <option value={4} disabled={activeOperators.has(4)}>Operatore 4{activeOperators.has(4) ? ' (Sessione Attiva)' : ''}</option>
-              <option value={5} disabled={activeOperators.has(5)}>Operatore 5{activeOperators.has(5) ? ' (Sessione Attiva)' : ''}</option>
-            </select>
-            {operator > 0 && (
-              <Badge variant="outline" className="text-base px-4 py-1">
-                Sessione: operator-{operator}
-              </Badge>
-            )}
-          </div>
-          
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <Button
-              onClick={toggleSession}
-              variant={isSessionActive ? "destructive" : "default"}
-              size="lg"
-            >
-              {isSessionActive ? (
-                <>
-                  <Square className="w-5 h-5 mr-2" />
-                  Ferma Sessione
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5 mr-2" />
-                  Avvia Sessione
-                </>
-              )}
-            </Button>
-            <Link href="/config">
-              <Button 
-                variant="outline" 
-                size="lg"
-                onClick={() => {
-                  console.group('🖱️ CLICK: Link Configurazione');
-                  console.log('⏰ Timestamp:', new Date().toISOString());
-                  console.log('🔗 Destinazione: /config');
-                  console.log('📊 Stato corrente:', {
-                    session,
-                    operator,
-                    isSessionActive,
-                    baseUrl,
-                    pollingInterval,
-                    target
-                  });
-                  console.groupEnd();
+    <>
+      {/* Name Dialog */}
+      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Identificazione Operatore</DialogTitle>
+            <DialogDescription>
+              Inserisci il tuo nome per identificarti su questo dispositivo. Questo permette di tracciare chi sta utilizzando quale operatore.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="operator-name">Nome Operatore</Label>
+              <Input
+                id="operator-name"
+                placeholder="Es: Marco, Luigi, Sara..."
+                value={tempOperatorName}
+                onChange={(e) => setTempOperatorName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && tempOperatorName.trim()) {
+                    handleNameConfirm();
+                  }
                 }}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Configurazione
-              </Button>
-            </Link>
+                autoFocus
+              />
+            </div>
           </div>
-        </div>
+          <DialogFooter>
+            <Button 
+              onClick={handleNameConfirm} 
+              disabled={!tempOperatorName.trim()}
+              className="w-full"
+            >
+              Conferma
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Blocked URL Banner */}
-        {blockedUrl && (
-          <Card className="border-red-500 bg-red-50 dark:bg-red-950">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
-                    ⚠️ Popup Bloccato dal Browser
-                  </h3>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    Il browser ha bloccato l'apertura automatica. Clicca il pulsante per aprire manualmente.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="lg"
-                    onClick={() => {
-                      console.group('🖱️ CLICK: Apri Link Bloccato');
-                      console.log('⏰ Timestamp:', new Date().toISOString());
-                      console.log('🔗 URL da aprire:', blockedUrl);
-                      console.log('🔐 Session:', session);
-                      console.log('👤 Operatore:', operator);
-                      window.open(blockedUrl, '_blank', 'noopener,noreferrer');
-                      console.log('✅ window.open eseguito');
-                      setBlockedUrl('');
-                      console.log('✅ Banner nascosto');
-                      console.groupEnd();
-                    }}
-                  >
-                    Apri Link
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="ghost"
-                    onClick={() => {
-                      console.group('🖱️ CLICK: Chiudi Banner Bloccato');
-                      console.log('⏰ Timestamp:', new Date().toISOString());
-                      console.log('🔗 URL bloccato (nascosto):', blockedUrl);
-                      setBlockedUrl('');
-                      console.log('✅ Banner nascosto');
-                      console.groupEnd();
-                    }}
-                    className="px-3"
-                  >
-                    <X className="w-5 h-5" />
-                  </Button>
-                </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              QR-Seatable Bridge - Receiver
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Scansiona il QR code con il tuo telefono per connettere il sender
+            </p>
+            
+            {/* Error Banner */}
+            {error && (
+              <div className="mt-4 mx-auto max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {error}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+            
+            {/* Operator Selector */}
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Seleziona Operatore:
+              </label>
+              <select
+                value={operator}
+                onChange={(e) => handleOperatorChange(parseInt(e.target.value))}
+                disabled={isSessionActive}
+                className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value={0}>Seleziona un operatore...</option>
+                <option value={1} disabled={activeOperators.has(1)}>Operatore 1{activeOperators.has(1) ? ' (Sessione Attiva)' : ''}</option>
+                <option value={2} disabled={activeOperators.has(2)}>Operatore 2{activeOperators.has(2) ? ' (Sessione Attiva)' : ''}</option>
+                <option value={3} disabled={activeOperators.has(3)}>Operatore 3{activeOperators.has(3) ? ' (Sessione Attiva)' : ''}</option>
+                <option value={4} disabled={activeOperators.has(4)}>Operatore 4{activeOperators.has(4) ? ' (Sessione Attiva)' : ''}</option>
+                <option value={5} disabled={activeOperators.has(5)}>Operatore 5{activeOperators.has(5) ? ' (Sessione Attiva)' : ''}</option>
+              </select>
+              {operator > 0 && (
+                <Badge variant="outline" className="text-base px-4 py-1">
+                  Sessione: operator-{operator}
+                </Badge>
+              )}
+            </div>
+            
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <Button
+                onClick={toggleSession}
+                variant={isSessionActive ? "destructive" : "default"}
+                size="lg"
+              >
+                {isSessionActive ? (
+                  <>
+                    <Square className="w-5 h-5 mr-2" />
+                    Ferma Sessione
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 mr-2" />
+                    Avvia Sessione
+                  </>
+                )}
+              </Button>
+              <Link href="/config">
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  onClick={() => {
+                    console.group('🖱️ CLICK: Link Configurazione');
+                    console.log('⏰ Timestamp:', new Date().toISOString());
+                    console.log('🔗 Destinazione: /config');
+                    console.log('📊 Stato corrente:', {
+                      session,
+                      operator,
+                      isSessionActive,
+                      baseUrl,
+                      pollingInterval,
+                      target
+                    });
+                    console.groupEnd();
+                  }}
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Configurazione
+                </Button>
+              </Link>
+            </div>
+          </div>
 
-        {/* Admin Panel - Only visible to Operator 1 */}
-        {operator === 1 && (
-          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                Pannello Controllo Operatori
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((op) => {
-                  const state = adminOperatorStates[op];
-                  const isCurrentOperator = op === operator;
-                  
-                  return (
-                    <div 
-                      key={op}
-                      className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
+          {/* Blocked URL Banner */}
+          {blockedUrl && (
+            <Card className="border-red-500 bg-red-50 dark:bg-red-950">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                      ⚠️ Popup Bloccato dal Browser
+                    </h3>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      Il browser ha bloccato l'apertura automatica. Clicca il pulsante per aprire manualmente.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="lg"
+                      onClick={() => {
+                        console.group('🖱️ CLICK: Apri Link Bloccato');
+                        console.log('⏰ Timestamp:', new Date().toISOString());
+                        console.log('🔗 URL da aprire:', blockedUrl);
+                        console.log('🔐 Session:', session);
+                        console.log('👤 Operatore:', operator);
+                        window.open(blockedUrl, '_blank', 'noopener,noreferrer');
+                        console.log('✅ window.open eseguito');
+                        setBlockedUrl('');
+                        console.log('✅ Banner nascosto');
+                        console.groupEnd();
+                      }}
                     >
-                      <div className="flex items-center gap-3">
-                        <Badge variant={isCurrentOperator ? "default" : "outline"}>
-                          Operatore {op} {isCurrentOperator && '(Tu)'}
-                        </Badge>
-                        {state?.loading ? (
-                          <span className="text-sm text-gray-500">Caricamento...</span>
-                        ) : (
-                          <Badge 
-                            variant={state?.active ? "destructive" : "secondary"}
-                            className="text-xs"
-                          >
-                            {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                      Apri Link
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="ghost"
+                      onClick={() => {
+                        console.group('🖱️ CLICK: Chiudi Banner Bloccato');
+                        console.log('⏰ Timestamp:', new Date().toISOString());
+                        console.log('🔗 URL bloccato (nascosto):', blockedUrl);
+                        setBlockedUrl('');
+                        console.log('✅ Banner nascosto');
+                        console.groupEnd();
+                      }}
+                      className="px-3"
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Admin Panel - Only visible to Operator 1 */}
+          {operator === 1 && (
+            <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                  Pannello Controllo Operatori
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((op) => {
+                    const state = adminOperatorStates[op];
+                    const isCurrentOperator = op === operator;
+                    
+                    return (
+                      <div 
+                        key={op}
+                        className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge variant={isCurrentOperator ? "default" : "outline"}>
+                            Operatore {op} {isCurrentOperator && '(Tu)'}
                           </Badge>
+                          {state?.loading ? (
+                            <span className="text-sm text-gray-500">Caricamento...</span>
+                          ) : (
+                            <Badge 
+                              variant={state?.active ? "destructive" : "secondary"}
+                              className="text-xs"
+                            >
+                              {state?.active ? '🟢 ATTIVA' : '🔴 INATTIVA'}
+                            </Badge>
+                          )}
+                        </div>
+                        {!isCurrentOperator && state?.active && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => stopOperatorSession(op)}
+                          >
+                            Ferma Sessione
+                          </Button>
                         )}
                       </div>
-                      {!isCurrentOperator && state?.active && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => stopOperatorSession(op)}
-                        >
-                          Ferma Sessione
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Session & QR Code */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Sessione Attiva</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Session ID:
-                </label>
-                <div className="flex items-center gap-2 mt-1">
-                  <code className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm font-mono">
-                    {session || '—'}
-                  </code>
-                  <Button
-                    id="copy-session"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyToClipboard(session, 'copy-session')}
-                    disabled={!session}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
+                    );
+                  })}
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          )}
 
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  URL Sender:
-                </label>
-                <div className="flex items-center gap-2 mt-1">
-                  <a
-                    href={senderUrl || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm truncate hover:bg-gray-200 dark:hover:bg-gray-700"
-                  >
-                    {senderUrl || '—'}
-                  </a>
-                  <Button
-                    id="copy-url"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyToClipboard(senderUrl, 'copy-url')}
-                    disabled={!senderUrl}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Session & QR Code */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Sessione Attiva</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Session ID:
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm font-mono">
+                      {session || '—'}
+                    </code>
+                    <Button
+                      id="copy-session"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(session, 'copy-session')}
+                      disabled={!session}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex flex-col items-center justify-center py-6">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  QR Code di Pairing
-                </p>
-                {qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="QR Code"
-                    className="border-4 border-white shadow-lg rounded-lg"
-                  />
-                ) : (
-                  <div className="w-[200px] h-[200px] bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Status & Logs */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status & Log</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
-                  Stato Corrente:
-                </label>
-                <Badge 
-                  variant="outline" 
-                  className={`w-full justify-center py-2 text-sm ${isSessionActive ? 'bg-green-50 text-green-700 border-green-300' : 'bg-gray-50 text-gray-700'}`}
-                >
-                  {status}
-                </Badge>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
-                  Log Live:
-                </label>
-                <div className="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded-lg h-[400px] overflow-y-auto">
-                  {logs.map((log, idx) => (
-                    <div key={idx} className="whitespace-pre-wrap mb-1">
-                      {log}
-                    </div>
-                  ))}
+                <div>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    URL Sender:
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <a
+                      href={senderUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded text-sm truncate hover:bg-gray-200 dark:hover:bg-gray-700"
+                    >
+                      {senderUrl || '—'}
+                    </a>
+                    <Button
+                      id="copy-url"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(senderUrl, 'copy-url')}
+                      disabled={!senderUrl}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                <div className="flex flex-col items-center justify-center py-6">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    QR Code di Pairing
+                  </p>
+                  {qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="QR Code"
+                      className="border-4 border-white shadow-lg rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-[200px] h-[200px] bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Status & Logs */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Status & Log</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                    Stato Corrente:
+                  </label>
+                  <Badge 
+                    variant="outline" 
+                    className={`w-full justify-center py-2 text-sm ${isSessionActive ? 'bg-green-50 text-green-700 border-green-300' : 'bg-gray-50 text-gray-700'}`}
+                  >
+                    {status}
+                  </Badge>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                    Log Live:
+                  </label>
+                  <div className="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded-lg h-[400px] overflow-y-auto">
+                    {logs.map((log, idx) => (
+                      <div key={idx} className="whitespace-pre-wrap mb-1">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
