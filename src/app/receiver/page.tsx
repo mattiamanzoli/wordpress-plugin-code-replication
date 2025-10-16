@@ -966,12 +966,14 @@ function ReceiverContent() {
                   </>
                 )}
               </Button>
-              <Link href="/config">
-                <Button variant="outline" size="lg">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configurazione
-                </Button>
-              </Link>
+              {operator === 1 && (
+                <Link href="/config">
+                  <Button variant="outline" size="lg">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configurazione
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
 
