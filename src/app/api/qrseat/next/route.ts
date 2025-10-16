@@ -4,38 +4,76 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), '.qrseat-data');
 
+const DEFAULT_MESSAGE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface SessionMessage {
+  id: string;
+  ver: number;
+  timestamp: number;
+  expiresAt?: number;
+}
+
 // CRITICAL: Session data structure with message history
 interface SessionData {
   session: string;
-  messages: Array<{
-    id: string;
-    ver: number;
-    timestamp: number;
-  }>;
+  lastVer?: number;
+  messages: SessionMessage[];
+}
+
+function purgeExpiredMessages(sessionData: SessionData, now = Date.now()): boolean {
+  const originalLength = sessionData.messages.length;
+
+  sessionData.messages = sessionData.messages.filter((message) => {
+    const expiresAt = message.expiresAt ?? (message.timestamp + DEFAULT_MESSAGE_TTL);
+    return expiresAt > now;
+  });
+
+  return sessionData.messages.length !== originalLength;
 }
 
 // CRITICAL: Load session data with message history
 async function loadSessionData(session: string): Promise<SessionData> {
   const filePath = path.join(DATA_DIR, `${session}.json`);
-  
+
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const data = JSON.parse(content);
-    
+
     // Ensure data has messages array
     if (!data.messages || !Array.isArray(data.messages)) {
-      return { session, messages: [] };
+      return { session, messages: [], lastVer: 0 };
     }
-    
-    return data as SessionData;
+
+    const sessionData: SessionData = {
+      session,
+      lastVer: typeof data.lastVer === 'number' ? data.lastVer : undefined,
+      messages: data.messages.map((message: any) => ({
+        id: String(message.id ?? ''),
+        ver: Number(message.ver ?? 0),
+        timestamp: Number(message.timestamp ?? Date.now()),
+        expiresAt: typeof message.expiresAt === 'number' ? message.expiresAt : undefined,
+      })),
+    };
+
+    const removed = purgeExpiredMessages(sessionData);
+
+    if (removed) {
+      await saveSessionData(sessionData);
+    }
+
+    return sessionData;
   } catch {
     // File doesn't exist or is invalid
-    return { session, messages: [] };
+    return { session, messages: [], lastVer: 0 };
   }
 }
 
 // CRITICAL: Save session data
 async function saveSessionData(data: SessionData) {
+  if (typeof data.lastVer !== 'number') {
+    data.lastVer = data.messages.reduce((max, message) => (message.ver > max ? message.ver : max), 0);
+  }
+  await fs.mkdir(DATA_DIR, { recursive: true });
   const filePath = path.join(DATA_DIR, `${data.session}.json`);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
